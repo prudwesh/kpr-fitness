@@ -1,0 +1,23 @@
+name: Version check
+
+# Every change to the app must raise its version (a.b.c), the same way
+# KPR Finance does. Fails when app files changed but the version didn't, or
+# when a version number or a ?v= link was missed.
+# Fix: python3 tools/bump-version.py patch|minor|major, then commit.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Version raised?
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 tools/bump-version.py --since "$BASE"
