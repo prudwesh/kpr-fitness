@@ -799,7 +799,7 @@
 
   // Routines everyone gets to start from. Exercises are by id; sets are
   // what the routine suggests (reps or seconds).
-  const R = (id, name, about, level, items) => ({ id, name, about, level, builtin: true, items: items.map(([ex, sets, reps, rest]) => ({ ex, sets, reps, rest: rest || 90 })) });
+  const R = (id, name, about, level, items) => ({ id, name, about, level, builtin: true, items: items.map(([ex, sets, reps, rest]) => ({ ex, sets, reps, rest: rest == null ? 90 : rest })) });
   const ROUTINES = [
     R("starter-full-body", "Full body — beginner", "Three times a week. Every main muscle, simple moves.", "Beginner", [
       ["goblet-squat", 3, 10], ["push-up", 3, 8], ["dumbbell-row", 3, 10], ["glute-bridge", 3, 12], ["seated-dumbbell-press", 2, 10], ["plank", 3, 30, 60]]),
@@ -819,15 +819,116 @@
       ["back-squat", 4, 6, 180], ["romanian-deadlift", 3, 8, 120], ["bulgarian-split-squat", 3, 10], ["leg-extension", 3, 12, 60], ["seated-calf-raise", 4, 15, 60], ["plank", 3, 45, 60]]),
     R("home-no-equipment", "Home — no equipment", "Anywhere, nothing needed. Do it as a circuit.", "Beginner", [
       ["bodyweight-squat", 3, 20, 45], ["push-up", 3, 12, 45], ["reverse-lunge", 3, 12, 45], ["superman", 3, 12, 45], ["glute-bridge", 3, 15, 45], ["mountain-climber", 3, 30, 45], ["plank", 3, 40, 45]]),
-    R("hiit-20", "HIIT — 20 minutes", "40 seconds on, 20 off. Four rounds.", "All levels", [
-      ["burpee", 4, 40, 20], ["jump-squat", 4, 40, 20], ["mountain-climber", 4, 40, 20], ["high-knees", 4, 40, 20], ["jumping-lunge", 4, 40, 20]]),
+    R("hiit-20", "HIIT — 20 minutes", "40 seconds on, 20 off, four rounds. Rep targets are what fits in 40 seconds.", "All levels", [
+      ["burpee", 4, 10, 20], ["jump-squat", 4, 15, 20], ["mountain-climber", 4, 40, 20], ["high-knees", 4, 40, 20], ["jumping-lunge", 4, 12, 20]]),
     R("core-10", "Core — 10 minutes", "A quick core finisher.", "All levels", [
       ["dead-bug", 2, 12, 30], ["plank", 2, 45, 30], ["side-plank", 2, 30, 30], ["bicycle-crunch", 2, 20, 30], ["hollow-body-hold", 2, 30, 30]]),
     R("mobility-15", "Mobility — 15 minutes", "Loosen up on rest days or before training.", "All levels", [
       ["cat-cow", 1, 10, 0], ["world-s-greatest-stretch", 1, 8, 0], ["thoracic-rotation", 1, 10, 0], ["hip-flexor-stretch", 2, 30, 0], ["pigeon-stretch", 2, 45, 0], ["deep-squat-hold", 1, 60, 0], ["child-s-pose", 1, 60, 0]]),
     R("run-easy", "Easy run", "Conversation pace. Warm up and cool down with a walk.", "All levels", [
       ["walking", 1, 0, 0], ["running", 1, 0, 0], ["calf-stretch", 2, 30, 0], ["hamstring-stretch", 2, 30, 0]]),
+
+    // ---- Programs added for the goals below ----
+    R("fat-loss-circuit-a", "Fat loss — circuit A", "Full body, short rests, keeps your heart rate up. Go round as a circuit.", "All levels", [
+      ["goblet-squat", 3, 12, 45], ["push-up", 3, 10, 45], ["dumbbell-row", 3, 12, 45], ["reverse-lunge", 3, 10, 45], ["kettlebell-swing", 3, 15, 45], ["mountain-climber", 3, 30, 45], ["plank", 3, 40, 45]]),
+    R("fat-loss-circuit-b", "Fat loss — circuit B", "The other half of the circuits. Alternate A and B.", "All levels", [
+      ["dumbbell-romanian-deadlift", 3, 12, 45], ["seated-dumbbell-press", 3, 10, 45], ["lat-pulldown", 3, 12, 45], ["step-up", 3, 10, 45], ["burpee", 3, 10, 45], ["bicycle-crunch", 3, 20, 45], ["jump-rope", 3, 60, 45]]),
+    R("fat-loss-intervals", "Cardio intervals — 20 minutes", "Short hard efforts with easy recovery. Warm up first.", "Intermediate", [
+      ["jumping-jacks", 1, 120, 0], ["assault-bike", 8, 20, 60], ["high-knees", 4, 30, 30], ["mountain-climber", 4, 30, 30]]),
+    R("fat-loss-steady", "Steady cardio — 30 to 45 minutes", "Easy pace you could chat at. Pick one machine and log distance and time.", "All levels", [
+      ["incline-walk", 1, 0, 0], ["calf-stretch", 2, 30, 0], ["hip-flexor-stretch", 2, 30, 0]]),
+    R("abs-strength", "Six-pack — weighted abs", "Abs are a muscle: load them and they grow. Add weight when reps get easy.", "Intermediate", [
+      ["cable-crunch", 3, 12, 60], ["hanging-leg-raise", 3, 10, 60], ["ab-wheel-rollout", 3, 8, 60], ["pallof-press", 3, 12, 45], ["side-plank", 3, 30, 30]]),
+    R("abs-bodyweight", "Six-pack — no-equipment abs", "Upper abs, lower abs and obliques with nothing but a mat.", "All levels", [
+      ["crunch", 3, 20, 30], ["lying-leg-raise", 3, 15, 30], ["bicycle-crunch", 3, 20, 30], ["v-up", 3, 12, 30], ["russian-twist", 3, 20, 30], ["hollow-body-hold", 3, 30, 30], ["plank", 2, 60, 30]]),
+    R("arms-day", "Arms — biceps and triceps", "An extra arm day on top of a split.", "Intermediate", [
+      ["barbell-curl", 3, 10, 60], ["close-grip-bench-press", 3, 8, 90], ["hammer-curl", 3, 12, 60], ["skull-crusher", 3, 10, 60], ["incline-dumbbell-curl", 3, 12, 60], ["rope-pushdown", 3, 15, 45]]),
+    R("maintain-full-body-a", "Stay fit — full body A", "The big lifts, moderate weight. Leave a rep or two in the tank.", "All levels", [
+      ["back-squat", 3, 8, 120], ["barbell-bench-press", 3, 8, 120], ["barbell-row", 3, 8, 90], ["plank", 3, 45, 60]]),
+    R("maintain-full-body-b", "Stay fit — full body B", "Alternate with A.", "All levels", [
+      ["romanian-deadlift", 3, 8, 120], ["overhead-press", 3, 8, 90], ["pull-up", 3, 6, 90], ["walking-lunge", 2, 12, 60], ["side-plank", 2, 30, 30]]),
+    R("tone-full-body", "Tone up — full body", "Moderate weights, higher reps, short rests.", "Beginner", [
+      ["goblet-squat", 3, 15, 60], ["push-up", 3, 12, 60], ["dumbbell-row", 3, 15, 60], ["glute-bridge", 3, 15, 45], ["lateral-raise", 3, 15, 45], ["triceps-kickback", 3, 15, 45], ["dead-bug", 3, 12, 30]]),
+    R("tone-lower", "Tone up — legs and glutes", "Shapes the legs and glutes.", "Beginner", [
+      ["bulgarian-split-squat", 3, 12, 60], ["hip-thrust", 3, 12, 60], ["dumbbell-romanian-deadlift", 3, 12, 60], ["banded-lateral-walk", 3, 20, 30], ["standing-calf-raise", 3, 15, 45]]),
+    R("starter-full-body-b", "Full body — beginner B", "Alternate with Full body — beginner. Machines make it easy to learn.", "Beginner", [
+      ["leg-press", 3, 10, 90], ["incline-push-up", 3, 10, 60], ["lat-pulldown", 3, 10, 90], ["dumbbell-romanian-deadlift", 3, 10, 90], ["bird-dog", 2, 10, 45], ["side-plank", 2, 20, 45]]),
+    R("walk-brisk", "Brisk walk", "30 minutes at a pace where talking takes a little effort.", "Beginner", [
+      ["walking", 1, 0, 0], ["calf-stretch", 2, 30, 0], ["hamstring-stretch", 2, 30, 0]]),
+    R("home-dumbbells", "Home — a pair of dumbbells", "Everything a full gym session does, with two dumbbells.", "All levels", [
+      ["goblet-squat", 3, 12, 60], ["dumbbell-row", 3, 12, 60], ["seated-dumbbell-press", 3, 10, 60], ["dumbbell-romanian-deadlift", 3, 12, 60], ["reverse-lunge", 3, 10, 60], ["dumbbell-curl", 2, 12, 45], ["plank", 3, 40, 45]]),
+    R("run-intervals", "Run intervals", "Warm up with a walk, then repeat: fast for 1 minute, walk 90 seconds.", "Intermediate", [
+      ["walking", 1, 0, 0], ["sprints", 6, 0, 90], ["walking", 1, 0, 0]]),
+    R("stamina-circuit", "Stamina circuit", "Five moves, four rounds, little rest. Builds the engine.", "Intermediate", [
+      ["jump-rope", 4, 60, 30], ["burpee", 4, 10, 30], ["jump-squat", 4, 15, 30], ["mountain-climber", 4, 30, 30], ["battle-ropes", 4, 30, 60]]),
+    R("yoga-flow-20", "Yoga flow — 20 minutes", "Slow and steady. Breathe through each hold.", "All levels", [
+      ["sun-salutation", 1, 5, 0], ["downward-dog", 2, 45, 0], ["warrior-ii", 2, 45, 0], ["tree-pose", 2, 30, 0], ["pigeon-stretch", 2, 45, 0], ["cobra-pose", 2, 30, 0], ["child-s-pose", 1, 60, 0], ["corpse-pose", 1, 120, 0]]),
+    R("desk-relief", "Desk relief — 10 minutes", "For stiff necks, backs and hips after a day of sitting.", "All levels", [
+      ["neck-stretch", 2, 30, 0], ["chest-doorway-stretch", 2, 30, 0], ["cat-cow", 1, 10, 0], ["thoracic-rotation", 1, 10, 0], ["hip-flexor-stretch", 2, 30, 0], ["wrist-stretch", 2, 30, 0]]),
+    R("glute-builder", "Glute builder", "Heavy hip thrusts first, then single-leg and isolation work.", "Intermediate", [
+      ["hip-thrust", 4, 10, 90], ["bulgarian-split-squat", 3, 10, 90], ["romanian-deadlift", 3, 10, 90], ["cable-kickback", 3, 15, 45], ["hip-abduction-machine", 3, 15, 45]]),
   ];
 
-  window.KPR_FITNESS_DATA = { MUSCLES, EQUIPMENT, CATEGORIES, TRACKS, LIST, BY_ID, ROUTINES, DEMOS, slug };
+  // Programs grouped by what people want. Each goal lists its routines (ids
+  // above, in the order to do them) and a suggested week. Honest about what
+  // training can and can't do (no spot fat loss).
+  const GOALS = [
+    { id: "lose-fat", icon: "🔥", name: "Lose fat", tagline: "Including belly fat",
+      about: "You can't burn fat from one spot: crunches alone won't shrink the belly. What works is losing fat all over, and the belly goes with it. Combine strength circuits (keep your muscle), cardio, a small calorie deficit and more daily steps.",
+      week: "4 days: circuit A, cardio intervals, circuit B, steady cardio. Walk 8,000+ steps every day.",
+      tips: ["Aim to lose about 0.5–1% of your body weight a week; faster usually comes back.", "Eat plenty of protein and vegetables; they keep you full.", "Weigh yourself in the Body tab once a week, same time of day, and watch the trend, not single days.", "Sleep 7–9 hours: short sleep makes you hungrier."],
+      routines: ["fat-loss-circuit-a", "fat-loss-intervals", "fat-loss-circuit-b", "fat-loss-steady", "hiit-20"] },
+    { id: "six-pack", icon: "🎯", name: "Get a six-pack", tagline: "Visible, strong abs",
+      about: "Everyone has a six-pack; it shows when body fat is low enough (roughly under 12–15% for men and 18–22% for women). So it takes two things: training the abs so they grow, and losing the fat that covers them.",
+      week: "Abs 3 days a week (weighted and no-equipment, alternating) after your main workout, plus 2–3 cardio sessions.",
+      tips: ["Treat abs like any muscle: add reps or weight over time.", "Breathe out and squeeze at the top of every rep; slow beats fast.", "The fat-loss tips apply here too: the diet does most of the showing."],
+      routines: ["abs-strength", "abs-bodyweight", "core-10", "fat-loss-intervals"] },
+    { id: "build-muscle", icon: "💪", name: "Build muscle", tagline: "Bigger and fuller",
+      about: "Muscle grows when you train each muscle about twice a week, hard (within 1–3 reps of failure), and keep adding weight or reps. Push / pull / legs or upper / lower both work well.",
+      week: "Push, pull, legs, rest, push, pull, legs, rest — or upper, lower, rest, upper, lower, rest, rest. Add the arm day if you like.",
+      tips: ["Use the Previous column: beat last time by one rep or a little weight.", "Eat a little more than you burn, with about 1.6–2.2 g of protein per kg of body weight.", "8–12 reps for most moves, 5–8 for the big ones."],
+      routines: ["ppl-push", "ppl-pull", "ppl-legs", "upper-body", "lower-body", "arms-day"] },
+    { id: "get-stronger", icon: "🏋️", name: "Get stronger", tagline: "Lift heavier",
+      about: "Strength comes from heavy, low-rep sets on a few big lifts, adding a little weight every session for as long as you can.",
+      week: "3 days a week, alternating day A and day B (Monday, Wednesday, Friday).",
+      tips: ["Add 2.5 kg (5 lb) to each lift every session while you can.", "Rest 3 minutes between heavy sets.", "Film a set now and then to check your form."],
+      routines: ["strength-5x5-a", "strength-5x5-b"] },
+    { id: "maintain", icon: "⚖️", name: "Stay fit", tagline: "Maintain what you have",
+      about: "Keeping fitness takes much less than building it: two or three sessions a week of strength, a little cardio and some mobility keep you where you are.",
+      week: "Full body A, an easy run or walk, full body B. Mobility whenever you're stiff.",
+      tips: ["Consistency beats intensity: two workouts every week for a year beats a hard month.", "Keep the weights the same as long as the reps stay the same."],
+      routines: ["maintain-full-body-a", "maintain-full-body-b", "run-easy", "mobility-15"] },
+    { id: "tone-up", icon: "✨", name: "Tone up", tagline: "Leaner, more defined",
+      about: "\"Toned\" means some more muscle and a little less fat. Moderate weights for higher reps, plus some cardio, gets you there.",
+      week: "3–4 days: full body, legs and glutes, HIIT, full body.",
+      tips: ["Light weights are fine only if the last reps feel hard.", "Pair it with the fat-loss tips if you also want to lose fat."],
+      routines: ["tone-full-body", "tone-lower", "hiit-20"] },
+    { id: "beginner", icon: "🌱", name: "Just starting", tagline: "New to working out",
+      about: "Start with simple moves, light weights and good form. Two or three short sessions a week build the habit and the base for everything else.",
+      week: "3 days a week, alternating beginner A and B. Walk on two other days.",
+      tips: ["The first two weeks, stop every set with a few reps to spare.", "Being sore after the first sessions is normal; it fades.", "Open any exercise to see how to do it and watch its demo."],
+      routines: ["starter-full-body", "starter-full-body-b", "walk-brisk"] },
+    { id: "home", icon: "🏠", name: "Train at home", tagline: "Little or no equipment",
+      about: "Bodyweight and a pair of dumbbells can do almost everything a gym does. Make it harder with slower reps, more reps or less rest.",
+      week: "3–4 days: alternate no-equipment and dumbbells. Add core or HIIT on a spare day.",
+      tips: ["Clear a mat-sized space and keep the dumbbells in sight: it makes starting easier."],
+      routines: ["home-no-equipment", "home-dumbbells", "core-10", "hiit-20"] },
+    { id: "stamina", icon: "🏃", name: "Build stamina", tagline: "Cardio and endurance",
+      about: "Most of your cardio should be easy, with one or two harder sessions a week. That's how runners, cyclists and rowers build an engine without burning out.",
+      week: "Easy run, intervals, easy run, stamina circuit. Make one easy session a little longer each week.",
+      tips: ["Easy means you can hold a conversation.", "Add no more than about 10% to your weekly distance at a time."],
+      routines: ["run-easy", "run-intervals", "stamina-circuit", "fat-loss-steady"] },
+    { id: "flexibility", icon: "🧘", name: "Flexibility & mobility", tagline: "Move better, feel looser",
+      about: "Short, regular sessions beat one long one. Stretch when you're warm and hold each stretch without bouncing.",
+      week: "10–20 minutes on most days. Desk relief on work days.",
+      tips: ["Never stretch into pain: mild tension is enough.", "Hold stretches 30–60 seconds and breathe slowly."],
+      routines: ["mobility-15", "yoga-flow-20", "desk-relief"] },
+    { id: "glutes-legs", icon: "🍑", name: "Glutes & legs", tagline: "Stronger, shapelier lower body",
+      about: "Glutes grow with heavy hip thrusts and hinges, single-leg work and a bit of isolation, trained twice a week.",
+      week: "Glute builder and lower body, 2–3 days apart, plus an upper-body day if you like.",
+      tips: ["Pause and squeeze for a second at the top of every hip thrust.", "Push the floor away through your heels on squats and lunges."],
+      routines: ["glute-builder", "lower-body", "tone-lower"] },
+  ];
+
+  window.KPR_FITNESS_DATA = { MUSCLES, EQUIPMENT, CATEGORIES, TRACKS, LIST, BY_ID, ROUTINES, GOALS, DEMOS, slug };
 })();

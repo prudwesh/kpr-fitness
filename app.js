@@ -1276,13 +1276,40 @@
   // ===================================================================
   // Routines
   // ===================================================================
-  function viewRoutines(v) {
+  // Routines: yours, then the programs, picked by goal (lose fat, six-pack,
+  // build muscle…). #/routines/<goal-id> opens one goal's page.
+  function viewRoutines(v, arg) {
+    const goal = D.GOALS.find((g) => g.id === arg);
+    if (goal) {
+      const list = goal.routines.map(findRoutine).filter(Boolean);
+      v.innerHTML = `<a class="btn ghost sm" href="#/routines" style="margin:2px 0 10px -6px">${I("left", 15)} All programs</a>
+        <div class="card goal-head">
+          <span class="goal-ic big" aria-hidden="true">${goal.icon}</span>
+          <div class="grow">
+            <h1>${esc(goal.name)}</h1><p class="muted" style="margin:2px 0 10px">${esc(goal.tagline)}</p>
+            <p style="margin:0;color:var(--text-2)">${esc(goal.about)}</p>
+          </div>
+        </div>
+        <div class="grid g2" style="margin-top:16px">
+          <div class="card"><div class="card-h"><h3>${I("timer", 16)} Suggested week</h3></div><p style="margin:0;color:var(--text-2)">${esc(goal.week)}</p></div>
+          <div class="card"><div class="card-h"><h3>${I("bulb", 16)} Tips</h3></div><ul class="goal-tips">${goal.tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>
+        </div>
+        <div class="sec-t">Workouts in this program</div>
+        <div class="grid rgrid">${list.map((r) => routineCard(r)).join("")}</div>
+        <p class="muted" style="font-size:12.5px;margin-top:16px">Start a workout to follow it as it is, or Copy it to your routines to change it. Check with a doctor before starting a new training plan.</p>`;
+      bindCommon(v);
+      return;
+    }
     v.innerHTML = `<div class="page-h"><div class="grow"><h1>Routines</h1><p>Save the workouts you repeat. Starting one fills in last time's numbers.</p></div>
         <button class="btn primary" id="newR" type="button">${I("plus", 16)} New routine</button></div>
       <div class="sec-t" style="margin-top:6px">My routines</div>
       ${derived.routines.length ? `<div class="grid rgrid">${derived.routines.map((r) => routineCard(r)).join("")}</div>` : `<div class="card empty" style="padding:30px"><b>No routines yet</b>Make one, copy a program below, or tick “save as a routine” when you finish a workout.</div>`}
-      <div class="sec-t">Programs</div>
-      <div class="grid rgrid">${D.ROUTINES.map((r) => routineCard(r)).join("")}</div>`;
+      <div class="sec-t">Programs — what do you want to do?</div>
+      <div class="goals">${D.GOALS.map((g) => `<a class="goal-card" href="#/routines/${esc(g.id)}">
+          <span class="goal-ic" aria-hidden="true">${g.icon}</span>
+          <span class="goal-t"><b>${esc(g.name)}</b><small>${esc(g.tagline)}</small></span>
+          <span class="goal-n">${g.routines.length} workout${g.routines.length === 1 ? "" : "s"} ${I("right", 14)}</span>
+        </a>`).join("")}</div>`;
     $("#newR").onclick = () => routineEditor({ name: "", notes: "", items: [] });
     bindCommon(v);
   }
@@ -1665,7 +1692,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.1.0",
+    appVersion: "1.2.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,

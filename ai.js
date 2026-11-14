@@ -74,7 +74,7 @@
       description: "The body log: weight, body fat and waist entries (newest first), height and BMI.",
       input_schema: { type: "object", properties: { limit: { type: "integer", description: "1-60. Default 20." } } } },
     { name: "get_routines",
-      description: "The person's saved routines and the built-in programs, each with its exercises, sets and reps.",
+      description: "The person's saved routines, and the built-in programs grouped by goal (lose fat, six-pack, build muscle, get stronger, stay fit, tone up, just starting, train at home, build stamina, flexibility, glutes & legs), each goal with its explanation, suggested week, tips and workouts.",
       input_schema: { type: "object", properties: {} } },
     { name: "find_exercises",
       description: "Search the app's exercise library (226 exercises plus the person's own). Returns ids, names, main muscle, equipment, type, how sets are logged and whether there's a demo. With details, also the how-to steps and a coaching tip. Use it to get exact ids before showing exercises or drafting a routine.",
@@ -196,7 +196,13 @@
         case "get_routines": {
           const fmt = (r) => ({ id: r.id, name: r.name, about: r.about || r.notes || undefined,
             exercises: (r.items || []).map((x) => { const ex = f.exById(x.ex); return `${ex.name}: ${x.sets} x ${ex.track === "t" ? x.reps + "s" : x.reps || "-"}${x.rest ? `, rest ${x.rest}s` : ""}`; }) });
-          return { mine: d.routines.map(fmt), programs: f.D.ROUTINES.map(fmt) };
+          const byId = new Map(f.D.ROUTINES.map((r) => [r.id, r]));
+          return {
+            mine: d.routines.map(fmt),
+            // The built-in programs, grouped by goal (Routines tab → Programs).
+            programsByGoal: f.D.GOALS.map((g) => ({ goalId: g.id, goal: g.name, forWho: g.tagline, about: g.about, suggestedWeek: g.week, tips: g.tips,
+              workouts: g.routines.map((id) => byId.get(id)).filter(Boolean).map(fmt) })),
+          };
         }
         case "find_exercises": {
           const pick = (o, v) => (o[v] ? v : "");
@@ -235,6 +241,7 @@
       `- Use their units: weight in ${f.wU()}, distance in ${f.dU()}.`,
       "- Work out dates from today's date ('this week' starts Monday).",
       "- When an exercise would help them (how to do it, or one you're recommending), show it with a line [[show: id1, id2]] using exact ids from find_exercises (at most 4). The app turns it into cards that open the exercise with its demo.",
+      "- When a goal program fits what they want (lose fat, belly fat, six-pack, build muscle, get stronger, stay fit, tone up, beginner, home, stamina, flexibility, glutes), recommend it and add a line [[program: goal-id]] with the goalId from get_routines; the app shows a card that opens that program. Be honest: fat can't be lost from one spot.",
       "- When they ask you to build a routine or workout, draft it with a line [[routine: {\"name\": \"…\", \"notes\": \"…\", \"items\": [{\"ex\": \"exact-id\", \"sets\": 3, \"reps\": 10, \"rest\": 90}]}]] (reps = seconds for timed exercises; at most 12 exercises; ids from find_exercises). The app shows a card that opens it in the routine editor, where they check and save it. Prefer equipment they've used before. Also describe the plan briefly in words.",
       "- You can't save, change or delete anything yourself; the person does that in the app.",
       "- The [[...]] lines are read by the app and hidden; never mention them.",
@@ -242,7 +249,7 @@
       "",
       `Today: ${f.ymd(Date.now())}. Units: ${f.wU()} and ${f.dU()}. Weekly goal: ${S.goal} workouts.`,
       "",
-      "App guide: Today (this week's goal ring, streak, muscles trained, last workout, records). Workout (start empty, from a routine, or repeat one; log sets; the Previous column shows last time; tap the set number for warm-up / drop / failure; tick a set to start the rest timer; Finish saves it, and can save it as a routine). Exercises (library with search and filters, each with steps, a muscle map and a demo; star favourites; New exercise for your own). Routines (yours and built-in programs; Start, Copy, Edit). History (calendar, each workout: edit, repeat, save as routine, delete; Export CSV). Progress (charts, exercise progress, muscles worked, records, 1-rep-max and plate calculators). Body (weight, body fat, waist, BMI). Settings (units kg/lb, default rest, weekly goal, height, sound, download / import your data, AI Coach on or off).",
+      "App guide: Today (this week's goal ring, streak, muscles trained, last workout, records). Workout (start empty, from a routine, or repeat one; log sets; the Previous column shows last time; tap the set number for warm-up / drop / failure; tick a set to start the rest timer; Finish saves it, and can save it as a routine). Exercises (library with search and filters, each with steps, a muscle map and a demo; star favourites; New exercise for your own). Routines (yours, and Programs picked by goal: lose fat, six-pack, build muscle, get stronger, stay fit, tone up, just starting, train at home, build stamina, flexibility, glutes & legs; each with a suggested week, tips and workouts to Start or Copy). History (calendar, each workout: edit, repeat, save as routine, delete; Export CSV). Progress (charts, exercise progress, muscles worked, records, 1-rep-max and plate calculators). Body (weight, body fat, waist, BMI). Settings (units kg/lb, default rest, weekly goal, height, sound, download / import your data, AI Coach on or off).",
     ].join("\n");
   }
 
@@ -297,9 +304,10 @@
   }
   // [[show: a, b]] and [[routine: {...}]] lines, taken out of the text.
   function directives(text) {
-    const out = { show: [], routine: null, text: "" };
-    out.text = String(text || "").replace(/\[\[\s*(show|routine)\s*:\s*([\s\S]*?)\]\](?!\])/gi, (_, kind, body) => {
+    const out = { show: [], routine: null, program: null, text: "" };
+    out.text = String(text || "").replace(/\[\[\s*(show|routine|program)\s*:\s*([\s\S]*?)\]\](?!\])/gi, (_, kind, body) => {
       if (kind.toLowerCase() === "show") body.split(",").map((s) => s.trim()).filter(Boolean).forEach((id) => out.show.push(id));
+      else if (kind.toLowerCase() === "program") out.program = body.trim();
       else { try { out.routine = JSON.parse(body); } catch { /* ignored: not valid */ } }
       return "";
     }).replace(/\n{3,}/g, "\n\n").trim();
@@ -359,6 +367,9 @@
     if (shown.length) card(shown.map((ex) => `<button class="ai-ex" type="button" data-ai-ex="${esc(ex.id)}">
         ${ex.demo ? `<img src="demos/${encodeURIComponent(ex.id)}/0.jpg" alt="" loading="lazy" />` : `<span class="ai-ex-ph">${f.I("info", 18)}</span>`}
         <span><b>${esc(ex.name)}</b><small>${esc(f.D.MUSCLES[ex.muscle] || "")} · ${esc(f.D.EQUIPMENT[ex.equipment] || "")}${ex.demo ? " · demo" : ""}</small></span></button>`).join(""));
+    const g = d.program && f.D.GOALS.find((x) => x.id === d.program);
+    if (g) card(`<a class="ai-ex" href="#/routines/${esc(g.id)}" data-ai-goal><span class="ai-ex-ph" style="font-size:22px">${g.icon}</span>
+        <span><b>Program: ${esc(g.name)}</b><small>${esc(g.tagline)} · ${g.routines.length} workouts</small></span></a>`);
     const r = cleanRoutine(d.routine);
     if (r) card(`<div class="ai-routine"><b>${esc(r.name)}</b><ul>${r.items.map((x) => { const ex = f.exById(x.ex); return `<li>${esc(ex.name)} <span>${x.sets} × ${ex.track === "t" ? x.reps + "s" : ex.track === "dt" ? "–" : x.reps}</span></li>`; }).join("")}</ul>
         <button class="btn primary sm" type="button" data-ai-routine>Review and save</button></div>`, { routine: r });
@@ -514,6 +525,8 @@
     p.addEventListener("click", (e) => {
       const ex = e.target.closest("[data-ai-ex]"); if (ex) return F().openExercise(ex.dataset.aiEx);
       const q = e.target.closest("[data-ai-ask]"); if (q) return ask(q.dataset.aiAsk);
+      // A program opens on the page behind; on a phone the panel covers it.
+      if (e.target.closest("[data-ai-goal]") && matchMedia("(max-width: 1099px)").matches) open(false);
     });
     // Capture phase: decided before the app's own Escape closes a popup, so
     // one press closes the popup only, and the next one closes the coach.
