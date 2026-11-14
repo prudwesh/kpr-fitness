@@ -776,10 +776,13 @@
     return `<div class="card routine">
       <div class="card-h" style="margin:0"><h3>${esc(r.name)}</h3>${r.builtin ? `<span class="tag">${esc(r.level || "Program")}</span>` : `<button class="icon-btn sm" data-menu data-rmenu="${esc(r.id)}" type="button" aria-label="More">${I("more", 16)}</button>`}</div>
       ${r.about || r.notes ? `<p class="muted" style="margin:0;font-size:12.5px">${esc(r.about || r.notes)}</p>` : ""}
-      <ul class="exlist">${(r.items || []).slice(0, small ? 4 : 8).map((x) => { const ex = exById(x.ex); return `<li><span>${esc(ex.name)}</span><span>${x.sets} × ${ex.track === "t" ? x.reps + "s" : ex.track === "dt" ? "–" : x.reps || "–"}</span></li>`; }).join("")}${(r.items || []).length > (small ? 4 : 8) ? `<li class="muted"><span>+${r.items.length - (small ? 4 : 8)} more</span></li>` : ""}</ul>
+      <ul class="exlist">${(r.items || []).slice(0, small ? 4 : 8).map((x) => { const ex = exById(x.ex); return `<li><button class="rx" type="button" data-ex="${esc(ex.id)}" title="How to do ${esc(ex.name)}">${demoThumb(ex)}<span>${esc(ex.name)}</span></button><span class="rx-n">${x.sets} × ${ex.track === "t" ? x.reps + "s" : ex.track === "dt" ? "–" : x.reps || "–"}</span></li>`; }).join("")}${(r.items || []).length > (small ? 4 : 8) ? `<li class="muted"><span>+${r.items.length - (small ? 4 : 8)} more</span></li>` : ""}</ul>
       <div class="row" style="margin-top:4px"><button class="btn primary sm grow" data-start-r="${esc(r.id)}" type="button">${I("play", 14)} Start</button>${r.builtin && !small ? `<button class="btn sm" data-copy-r="${esc(r.id)}" type="button">${I("copy", 14)} Copy</button>` : ""}</div>
     </div>`;
   }
+  // A small still of an exercise's demo (or a plain dot when it has none),
+  // beside its name in routine cards; tapping the name opens the full demo.
+  const demoThumb = (ex) => (ex.demo ? `<img class="rx-img" src="demos/${encodeURIComponent(ex.id)}/0.jpg" alt="" loading="lazy" decoding="async" />` : `<i class="rx-img rx-none">${I("info", 13)}</i>`);
   const findRoutine = (id) => derived.routines.find((r) => r.id === id) || D.ROUTINES.find((r) => r.id === id);
   // Clicks shared by several views.
   function bindCommon(root) {
@@ -1322,7 +1325,7 @@
           <label class="lbl" for="rNotes">Notes</label><input class="input" id="rNotes" maxlength="5000" value="${esc(d.notes)}" placeholder="Optional" />
           <label class="lbl">Exercises</label>
           ${d.items.length ? `<div class="ri ri-h"><span>Exercise</span><span>Sets</span><span>Reps/sec</span><span>Rest (s)</span><span></span></div>` : ""}
-          <div id="rItems">${d.items.map((x, i) => { const ex = exById(x.ex); return `<div class="ri" data-i="${i}"><b title="${esc(ex.name)}">${esc(ex.name)}</b>
+          <div id="rItems">${d.items.map((x, i) => { const ex = exById(x.ex); return `<div class="ri" data-i="${i}"><button class="rx" type="button" data-ex="${esc(ex.id)}" title="How to do ${esc(ex.name)}">${demoThumb(ex)}<b>${esc(ex.name)}</b></button>
             <input class="input" data-f="sets" type="number" min="1" max="20" value="${x.sets}" aria-label="Sets" />
             <input class="input" data-f="reps" type="number" min="0" max="999" value="${x.reps}" aria-label="${ex.track === "t" ? "Seconds" : "Reps"}" ${ex.track === "dt" ? "disabled" : ""} />
             <input class="input" data-f="rest" type="number" min="0" max="900" step="15" value="${x.rest}" aria-label="Rest seconds" />
@@ -1338,7 +1341,8 @@
         x[f] = clamp(isNaN(n) ? 0 : n, f === "sets" ? 1 : 0, f === "sets" ? 20 : f === "rest" ? 900 : 999);
       };
       $("#rItems", m).onclick = (e) => {
-        const up = e.target.closest("[data-up]"), rm = e.target.closest("[data-rm]");
+        const up = e.target.closest("[data-up]"), rm = e.target.closest("[data-rm]"), how = e.target.closest("[data-ex]");
+        if (how) { sync(); exerciseDetail(how.dataset.ex); return; }
         if (up) { sync(); const i = +up.dataset.up; d.items.splice(i - 1, 0, d.items.splice(i, 1)[0]); refreshModal(); }
         if (rm) { sync(); d.items.splice(+rm.dataset.rm, 1); refreshModal(); }
       };
@@ -1692,7 +1696,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.2.0",
+    appVersion: "1.3.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
