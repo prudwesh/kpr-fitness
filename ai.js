@@ -365,7 +365,7 @@
     const f = F();
     const shown = Array.from(new Set(d.show)).map((id) => findEx(id)).filter(Boolean).slice(0, 4);
     if (shown.length) card(shown.map((ex) => `<button class="ai-ex" type="button" data-ai-ex="${esc(ex.id)}">
-        ${ex.demo ? `<img src="demos/${encodeURIComponent(ex.id)}/0.jpg" alt="" loading="lazy" />` : `<span class="ai-ex-ph">${f.I("info", 18)}</span>`}
+        ${ex.demo ? `<img src="${f.demoSrc(ex)}" alt="" loading="lazy" />` : `<span class="ai-ex-ph">${f.I("info", 18)}</span>`}
         <span><b>${esc(ex.name)}</b><small>${esc(f.D.MUSCLES[ex.muscle] || "")} · ${esc(f.D.EQUIPMENT[ex.equipment] || "")}${ex.demo ? " · demo" : ""}</small></span></button>`).join(""));
     const g = d.program && f.D.GOALS.find((x) => x.id === d.program);
     if (g) card(`<a class="ai-ex" href="#/routines/${esc(g.id)}" data-ai-goal><span class="ai-ex-ph" style="font-size:22px">${g.icon}</span>

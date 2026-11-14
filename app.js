@@ -782,7 +782,10 @@
   }
   // A small still of an exercise's demo (or a plain dot when it has none),
   // beside its name in routine cards; tapping the name opens the full demo.
-  const demoThumb = (ex) => (ex.demo ? `<img class="rx-img" src="demos/${encodeURIComponent(ex.id)}/0.jpg" alt="" loading="lazy" decoding="async" />` : `<i class="rx-img rx-none">${I("info", 13)}</i>`);
+  // Drawn demos have their own thumbnail (t.jpg), cropped to the figure, so
+  // it reads at this size; photos use their start frame.
+  const demoSrc = (ex) => `demos/${encodeURIComponent(ex.id)}/${ex.drawn ? "t" : "0"}.jpg`;
+  const demoThumb = (ex) => (ex.demo ? `<img class="rx-img" src="${demoSrc(ex)}" alt="" loading="lazy" decoding="async" />` : `<i class="rx-img rx-none">${I("info", 13)}</i>`);
   const findRoutine = (id) => derived.routines.find((r) => r.id === id) || D.ROUTINES.find((r) => r.id === id);
   // Clicks shared by several views.
   function bindCommon(root) {
@@ -1684,7 +1687,7 @@
     active: () => active,
     D, exById, allEx, setText, metricOf, metricText, METRICS, e1rm, counts, workoutVolume, workoutSets, bestMetric,
     wShow, wU, dShow, dU, isLb, fmtClock, fmtDur, ymd, fromYmd, weekStats, heatSince,
-    findRoutine, filterEx,
+    findRoutine, filterEx, demoSrc,
     openExercise: (id) => exerciseDetail(id),
     openRoutineDraft: (r) => routineEditor(r),
     startRoutine: (r) => startRoutine(r),
@@ -1694,7 +1697,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.3.1",
+    appVersion: "1.3.2",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
