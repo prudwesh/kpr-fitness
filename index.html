@@ -299,6 +299,19 @@
   .demo-credit { max-width: 560px; margin: 6px auto 16px; font-size: 11px; color: var(--muted); text-align: right; }
   .demo-credit a { color: inherit; text-decoration: underline; }
   .demo-tag { color: var(--accent); }
+  .goals { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .goal-card { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 12px; row-gap: 8px; padding: 16px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); transition: border-color .12s, transform .12s; }
+  .goal-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .goal-ic { width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); display: grid; place-items: center; font-size: 22px; line-height: 1; grid-row: span 2; }
+  .goal-ic.big { width: 64px; height: 64px; border-radius: 16px; font-size: 32px; flex-shrink: 0; }
+  .goal-t { display: grid; min-width: 0; }
+  .goal-t b { font-size: 15px; }
+  .goal-t small { color: var(--muted); font-size: 12.5px; }
+  .goal-n { display: flex; align-items: center; gap: 4px; color: var(--accent); font-size: 12.5px; font-weight: 650; }
+  .goal-head { display: flex; gap: 16px; align-items: flex-start; }
+  .goal-head h1 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
+  .goal-tips { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--text-2); }
+  @media (max-width: 720px) { .goal-head { flex-direction: column; gap: 10px; } }
   .ex-detail { display: grid; grid-template-columns: 220px 1fr; gap: 20px; }
   .steps { margin: 0; padding-left: 20px; display: grid; gap: 7px; color: var(--text-2); }
   .tipbox { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--text); font-size: 13px; display: flex; gap: 8px; }
@@ -441,8 +454,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://core.kprapps.online/firebase-config.js"></script>
 <script src="https://core.kprapps.online/kpr-core.js?v=36"></script>
-<script src="exercises.js?v=1.1.0"></script>
-<script src="app.js?v=1.1.0"></script>
-<script src="ai.js?v=1.1.0"></script>
+<script src="exercises.js?v=1.2.0"></script>
+<script src="app.js?v=1.2.0"></script>
+<script src="ai.js?v=1.2.0"></script>
 </body>
 </html>
