@@ -12,6 +12,19 @@ same as every other KPR app.
   phone and computer sizes).
 - `app.js`: the app. Views: Today, Workout (the logger), Exercises,
   Routines, History, Progress, Body, plus Settings.
+- `ai.js`: the **AI Coach** (header button). A chat with voice, like KPR
+  Finance's assistant: it answers about the person's own training (it looks
+  up workouts, records, exercise history, body log and routines on the
+  device, read-only), exercise technique, plans and recovery, and how to use
+  the app, and declines anything that isn't fitness. It can show exercises
+  (with their demo) and draft a routine that opens in the routine editor
+  for the person to save. It calls KPR AI (`prudwesh/kpr-ai`, app id
+  `fitness`), which must list `fitness` in its `CLIENTS` with the same
+  fitness-only ground rules. Turn it off per device in Settings.
+- `demos/<exercise-id>/0.jpg, 1.jpg`: the start and end photos of 182
+  exercises, played as a loop in the exercise view. From
+  [Free Exercise DB](https://github.com/yuhonas/free-exercise-db), public
+  domain (Unlicense). Exercises not in `DEMOS` (`exercises.js`) have none.
 - `exercises.js`: the exercise library (226 exercises: muscle, equipment,
   type, how a set is logged, steps, tip) and the built-in programs. An
   exercise's id is its name in lower-case-with-dashes; never rename one,

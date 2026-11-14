@@ -754,6 +754,47 @@
     "Kneel facing a wall with one foot forward.|Push your knee toward the wall, heel down.|Return and repeat.",
     "Helps squats feel better.");
 
+  // Exercises with a demo: two photos, start and end of the movement, in
+  // demos/<id>/0.jpg and 1.jpg, shown one after the other as a loop. From
+  // Free Exercise DB (github.com/yuhonas/free-exercise-db), public domain
+  // (Unlicense). An exercise not listed here has no demo.
+  const DEMOS = new Set([
+    "ab-wheel-rollout", "arm-circles", "arnold-press", "assisted-pull-up", "back-extension", "back-squat",
+    "band-pull-apart", "banded-lateral-walk", "barbell-bench-press", "barbell-curl", "barbell-row",
+    "barbell-shrug", "battle-ropes", "bench-dip", "bicycle-crunch", "bodyweight-squat", "box-jump",
+    "box-squat", "broad-jump", "bulgarian-split-squat", "cable-crossover", "cable-crunch", "cable-curl",
+    "cable-kickback", "cable-lateral-raise", "cable-overhead-extension", "calf-stretch", "cat-cow",
+    "chest-dip", "chest-doorway-stretch", "chest-supported-row", "child-s-pose", "chin-up", "clap-push-up",
+    "clean-and-jerk", "close-grip-bench-press", "close-grip-lat-pulldown", "concentration-curl",
+    "cross-body-shoulder-stretch", "crunch", "cycling", "dead-bug", "deadlift", "decline-barbell-bench-press",
+    "decline-push-up", "diamond-push-up", "double-unders", "dumbbell-bench-press", "dumbbell-curl",
+    "dumbbell-fly", "dumbbell-romanian-deadlift", "dumbbell-row", "dumbbell-shrug", "dumbbell-snatch",
+    "elliptical", "ez-bar-curl", "face-pull", "farmer-s-carry", "figure-four-stretch", "flutter-kicks",
+    "foam-roll-it-band", "foam-roll-quads", "foam-roll-upper-back", "front-raise", "front-squat",
+    "glute-bridge", "glute-ham-raise", "goblet-squat", "good-morning", "hack-squat", "hammer-curl",
+    "hamstring-stretch", "handstand-push-up", "hang-clean", "hanging-knee-raise", "hanging-leg-raise",
+    "hiking", "hip-abduction-machine", "hip-adduction-machine", "hip-flexor-stretch", "hip-thrust",
+    "incline-barbell-bench-press", "incline-dumbbell-curl", "incline-dumbbell-fly", "incline-dumbbell-press",
+    "incline-push-up", "incline-walk", "inverted-row", "jump-rope", "jump-squat", "jumping-lunge",
+    "kettlebell-swing", "knee-to-chest-stretch", "lat-pulldown", "lat-stretch", "lateral-raise",
+    "leg-extension", "leg-press", "low-to-high-cable-fly", "lying-leg-curl", "lying-leg-raise",
+    "machine-chest-press", "machine-row", "machine-shoulder-press", "medicine-ball-slam", "mountain-climber",
+    "neck-extension", "neck-flexion", "neck-stretch", "neutral-grip-pull-up", "nordic-curl", "overhead-press",
+    "overhead-triceps-extension", "pallof-press", "pec-deck", "pendlay-row", "pistol-squat", "plank",
+    "plate-pinch", "power-clean", "preacher-curl", "pull-up", "push-press", "push-up", "quad-stretch",
+    "rack-pull", "rear-delt-fly", "reverse-curl", "reverse-lunge", "reverse-pec-deck", "reverse-wrist-curl",
+    "romanian-deadlift", "rope-pushdown", "rowing-machine", "russian-twist", "seated-cable-row",
+    "seated-calf-raise", "seated-dumbbell-press", "seated-leg-curl", "side-plank", "single-leg-glute-bridge",
+    "single-leg-romanian-deadlift", "sissy-squat", "sit-up", "skater-jump", "skull-crusher", "sled-push",
+    "smith-machine-squat", "snatch", "spider-curl", "spin-class", "sprints", "stair-climber",
+    "standing-calf-raise", "standing-side-stretch", "stationary-bike", "step-up", "stiff-leg-deadlift",
+    "straight-arm-pulldown", "sumo-deadlift", "superman", "svend-press", "t-bar-row", "thruster", "tire-flip",
+    "toe-touch", "trap-bar-deadlift", "treadmill-run", "triceps-dip", "triceps-kickback", "triceps-pushdown",
+    "triceps-stretch", "trx-row", "tuck-jump", "turkish-get-up", "upright-row", "v-up", "walking-lunge",
+    "wide-push-up", "woodchopper", "world-s-greatest-stretch", "wrist-curl",
+  ]);
+  LIST.forEach((e) => { e.demo = DEMOS.has(e.id); });
+
   const BY_ID = new Map(LIST.map((e) => [e.id, e]));
 
   // Routines everyone gets to start from. Exercises are by id; sets are
@@ -788,5 +829,5 @@
       ["walking", 1, 0, 0], ["running", 1, 0, 0], ["calf-stretch", 2, 30, 0], ["hamstring-stretch", 2, 30, 0]]),
   ];
 
-  window.KPR_FITNESS_DATA = { MUSCLES, EQUIPMENT, CATEGORIES, TRACKS, LIST, BY_ID, ROUTINES, slug };
+  window.KPR_FITNESS_DATA = { MUSCLES, EQUIPMENT, CATEGORIES, TRACKS, LIST, BY_ID, ROUTINES, DEMOS, slug };
 })();

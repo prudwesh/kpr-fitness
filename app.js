@@ -69,6 +69,12 @@
     trophy: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/>',
     download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
     upload: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+    pause: '<path fill="currentColor" stroke="none" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>',
+    spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
+    send: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    volume: '<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
+    mute: '<path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 6 6M22 9l-6 6"/>',
   };
   const I = (n, s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ""}</svg>`;
 
@@ -1065,6 +1071,7 @@
       if (f.category && e.category !== f.category) return false;
       if (f.only === "fav" && !isFav(e.id)) return false;
       if (f.only === "mine" && e.builtin) return false;
+      if (f.only === "demo" && !e.demo) return false;
       if (words.length) {
         const hay = (e.name + " " + (D.MUSCLES[e.muscle] || "") + " " + (D.EQUIPMENT[e.equipment] || "") + " " + (D.CATEGORIES[e.category] || "") + " " + e.secondary.map((m) => D.MUSCLES[m]).join(" ")).toLowerCase();
         if (!words.every((w) => hay.includes(w))) return false;
@@ -1080,7 +1087,7 @@
     const done = (derived.hist.get(e.id) || []).length;
     return `<button class="ex-card ${sel ? "sel" : ""}" data-ex="${esc(e.id)}" type="button">
       ${bodyMap(exHeat(e), { side: "auto" })}
-      <span class="t"><b>${esc(e.name)}</b><span><span class="tag acc">${esc(D.MUSCLES[e.muscle] || e.muscle)}</span><span class="tag">${esc(D.EQUIPMENT[e.equipment] || e.equipment)}</span>${e.builtin ? "" : `<span class="tag">Mine</span>`}</span>
+      <span class="t"><b>${esc(e.name)}</b><span><span class="tag acc">${esc(D.MUSCLES[e.muscle] || e.muscle)}</span><span class="tag">${esc(D.EQUIPMENT[e.equipment] || e.equipment)}</span>${e.builtin ? "" : `<span class="tag">Mine</span>`}${e.demo ? `<span class="tag demo-tag">${I("play", 10)} Demo</span>` : ""}</span>
         <span class="muted" style="font-size:12px">${esc(D.CATEGORIES[e.category] || "")}${done ? ` · done ${done}×` : ""}</span></span>
       ${sel !== undefined ? `<span class="check">${I("check", 14)}</span>` : isFav(e.id) ? `<span class="star">${I("starFill", 16)}</span>` : ""}
     </button>`;
@@ -1097,6 +1104,7 @@
         <button class="chip ${!f.muscle && !f.only ? "on" : ""}" data-m="" type="button">All</button>
         <button class="chip ${f.only === "fav" ? "on" : ""}" data-only="fav" type="button">${I("star", 13)} Favourites</button>
         <button class="chip ${f.only === "mine" ? "on" : ""}" data-only="mine" type="button">Mine</button>
+        <button class="chip ${f.only === "demo" ? "on" : ""}" data-only="demo" type="button">${I("play", 11)} With demo</button>
         ${Object.entries(D.MUSCLES).map(([k, v]) => `<button class="chip ${f.muscle === k ? "on" : ""}" data-m="${k}" type="button">${esc(v)}</button>`).join("")}
       </div>`;
   }
@@ -1129,6 +1137,41 @@
     paint();
     $("#libList").onclick = (e) => { const c = e.target.closest("[data-ex]"); if (c) exerciseDetail(c.dataset.ex); };
   }
+  // The exercise's demo: its start and end photos, shown one after the other
+  // as a loop (Free Exercise DB, public domain). Starts paused when the device
+  // asks for less motion. Stops by itself once the player leaves the page.
+  const DEMO_MS = 1100;
+  function demoHtml(ex) {
+    if (!ex.demo) return "";
+    const src = (n) => `demos/${encodeURIComponent(ex.id)}/${n}.jpg`;
+    return `<div class="demo" data-demo>
+        <img src="${src(0)}" alt="${esc(ex.name)}: start position" class="f0" decoding="async" />
+        <img src="${src(1)}" alt="${esc(ex.name)}: end position" class="f1" decoding="async" />
+        <span class="demo-lbl" data-demo-lbl>Start</span>
+        <button class="demo-pp" type="button" data-demo-pp aria-label="Pause demo">${I("pause", 16)}</button>
+      </div>
+      <p class="demo-credit">Demo photos: <a href="https://github.com/yuhonas/free-exercise-db" target="_blank" rel="noopener">Free Exercise DB</a> (public domain)</p>`;
+  }
+  function runDemo(root) {
+    const el = root.querySelector("[data-demo]");
+    if (!el) return;
+    const lbl = el.querySelector("[data-demo-lbl]"), pp = el.querySelector("[data-demo-pp]");
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.getAttribute("data-kpr-motion") === "calm";
+    let timer = null;
+    const flip = () => {
+      if (!el.isConnected) return stop();
+      const end = el.classList.toggle("end");
+      lbl.textContent = end ? "End" : "Start";
+    };
+    const stop = () => { clearInterval(timer); timer = null; };
+    const paint = () => { pp.innerHTML = I(timer ? "pause" : "play", 16); pp.setAttribute("aria-label", timer ? "Pause demo" : "Play demo"); el.classList.toggle("paused", !timer); };
+    const play = () => { stop(); timer = setInterval(flip, DEMO_MS); };
+    pp.onclick = (e) => { e.stopPropagation(); if (timer) stop(); else { flip(); play(); } paint(); };
+    // Tapping the photo itself steps through it by hand.
+    el.onclick = () => { if (!timer) flip(); };
+    if (!calm) play();
+    paint();
+  }
   function exerciseDetail(id) {
     const ex = exById(id);
     openModal((m) => {
@@ -1140,7 +1183,7 @@
       modalShell(m, {
         title: esc(ex.name),
         sub: `<span class="row" style="gap:6px;margin-top:6px"><span class="tag acc">${esc(D.MUSCLES[ex.muscle] || ex.muscle)}</span>${ex.secondary.map((s) => `<span class="tag">${esc(D.MUSCLES[s] || s)}</span>`).join("")}<span class="tag">${esc(D.EQUIPMENT[ex.equipment] || "")}</span><span class="tag">${esc(D.CATEGORIES[ex.category] || "")}</span></span>`,
-        body: `<div class="ex-detail">
+        body: `${demoHtml(ex)}<div class="ex-detail">
             <div>${bodyMap(exHeat(ex))}<div class="legend"><span><i style="background:var(--accent)"></i>Main</span><span><i style="background:color-mix(in srgb, var(--accent) 55%, var(--card-3))"></i>Also works</span></div></div>
             <div>
               ${ex.steps.length ? `<h3 style="margin:0 0 8px;font-size:14px">How to do it</h3><ol class="steps">${ex.steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>` : `<p class="muted">No steps written for this exercise.</p>`}
@@ -1157,6 +1200,7 @@
           ${!ex.builtin && !ex.missing ? `<button class="btn ghost" id="exEdit" type="button">${I("edit", 15)} Edit</button>` : ""}<span class="grow"></span>
           ${ex.missing ? "" : active ? `<button class="btn primary" id="exAdd" type="button">${I("plus", 16)} Add to workout</button>` : `<button class="btn primary" id="exStart" type="button">${I("play", 15)} Start a workout with it</button>`}`,
       });
+      runDemo(m);
       m.querySelector("#fav").onclick = () => {
         const favs = new Set(S.favs || []); favs.has(id) ? favs.delete(id) : favs.add(id);
         saveSettings({ favs: Array.from(favs).slice(0, 500) }); refreshModal();
@@ -1512,11 +1556,12 @@
             <div><label class="lbl" for="sGoal">Workouts a week</label><input class="input" id="sGoal" type="number" min="1" max="14" value="${S.goal}" /></div>
             <div><label class="lbl" for="sH">Height (${isLb() ? "in" : "cm"})</label><input class="input" id="sH" type="number" min="0" max="${isLb() ? 118 : 300}" value="${heightShow}" placeholder="For BMI" /></div></div>
           <label class="row" style="margin-top:14px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="sSound" ${S.sound ? "checked" : ""} /> <span>Beep when rest is over</span></label>
+          <label class="row" style="margin-top:10px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="sAi" ${!window.KPRFitAI || window.KPRFitAI.enabled() ? "checked" : ""} /> <span>Show the AI Coach (on this device)</span></label>
           <h3 style="margin:22px 0 6px;font-size:14px">Your data</h3>
           <p class="muted" style="margin:0 0 10px;font-size:13px">Download everything, or bring back a file you downloaded before.</p>
           <div class="row"><button class="btn" id="sExp" type="button">${I("download", 15)} Download (JSON)</button><button class="btn" id="sCsv" type="button">${I("download", 15)} Workouts (CSV)</button><button class="btn" id="sImp" type="button">${I("upload", 15)} Import JSON</button><input type="file" id="sFile" accept="application/json,.json" hidden /></div>
           <h3 style="margin:22px 0 6px;font-size:14px">About &amp; privacy</h3>
-          <p class="muted" style="margin:0;font-size:13px;line-height:1.55">KPR Fitness keeps your workouts, routines, exercises, body entries and settings in your own KPR account. Only you can see them — not other users and not KPR admins. Nothing is shared or sold. Delete a workout or entry and it's gone for good. The exercise how-tos are general guidance, not medical advice: check with a doctor before starting a new training plan, and stop if something hurts.</p>`,
+          <p class="muted" style="margin:0;font-size:13px;line-height:1.55">KPR Fitness keeps your workouts, routines, exercises, body entries and settings in your own KPR account. Only you can see them — not other users and not KPR admins. Nothing is shared or sold. The AI Coach sends nothing until you ask it something; then your messages, and the training data it looks up to answer, go through KPR AI to Claude (Anthropic) and aren't kept by KPR Fitness. Exercise demo photos come from Free Exercise DB (public domain). Delete a workout or entry and it's gone for good. The exercise how-tos are general guidance, not medical advice: check with a doctor before starting a new training plan, and stop if something hurts.</p>`,
         foot: `<button class="btn" data-x2 type="button">Close</button><button class="btn primary" id="sSave" type="button">Save</button>`,
       });
       m.querySelector("[data-x2]").onclick = closeModal;
@@ -1526,6 +1571,7 @@
         const hv = parseNum($("#sH", m).value);
         const height = hv ? Math.round((isLb() ? hv * 2.54 : hv) * 10) / 10 : 0;
         saveSettings({ unit, rest: clamp(parseInt($("#sRest", m).value, 10) || 0, 0, 900), goal: clamp(parseInt($("#sGoal", m).value, 10) || 3, 1, 14), height: clamp(height, 0, 300), sound: $("#sSound", m).checked });
+        if (window.KPRFitAI) window.KPRFitAI.setEnabled($("#sAi", m).checked);
         closeModal(); toast("Settings saved"); rebuild(); render();
       };
       $("#sExp", m).onclick = exportJson;
@@ -1599,9 +1645,27 @@
   // Leaving with a workout going: it's saved, so just say so.
   addEventListener("beforeunload", () => { if (active) persistActive(true); });
 
+  // What ai.js (the AI coach) may read and do. Read-only views of the data,
+  // plus opening things on screen for the person to look at or save.
+  window.KPRFit = {
+    ready: () => !!(me && loaded && !loadErr),
+    user: () => me,
+    settings: () => Object.assign({}, S),
+    derived: () => derived,
+    active: () => active,
+    D, exById, allEx, setText, metricOf, metricText, METRICS, e1rm, counts, workoutVolume, workoutSets, bestMetric,
+    wShow, wU, dShow, dU, isLb, fmtClock, fmtDur, ymd, fromYmd, weekStats, heatSince,
+    findRoutine, filterEx,
+    openExercise: (id) => exerciseDetail(id),
+    openRoutineDraft: (r) => routineEditor(r),
+    startRoutine: (r) => startRoutine(r),
+    go,
+    I, esc, toast,
+  };
+
   render();
   KPR.init({
-    appVersion: "1.0.0",
+    appVersion: "1.1.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
