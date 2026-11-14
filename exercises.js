@@ -793,7 +793,20 @@
     "triceps-stretch", "trx-row", "tuck-jump", "turkish-get-up", "upright-row", "v-up", "walking-lunge",
     "wide-push-up", "woodchopper", "world-s-greatest-stretch", "wrist-curl",
   ]);
-  LIST.forEach((e) => { e.demo = DEMOS.has(e.id); });
+  // Exercises with no photo get a drawing instead: a figure in the start and
+  // end position, drawn for KPR Fitness by tools/draw-demos (same files,
+  // demos/<id>/0.jpg and 1.jpg). Together every exercise has a demo.
+  const DRAWN = new Set([
+    "burpee", "jumping-jacks", "high-knees", "running", "walking", "assault-bike", "bird-dog",
+    "hollow-body-hold", "pigeon-stretch", "wrist-stretch", "sun-salutation", "downward-dog", "cobra-pose",
+    "warrior-ii", "tree-pose", "corpse-pose", "thoracic-rotation", "deep-squat-hold", "pike-push-up",
+    "landmine-press", "dead-hang", "lateral-lunge", "wall-sit", "clamshell", "single-leg-calf-raise",
+    "tibialis-raise", "l-sit", "dragon-flag", "man-maker", "wall-ball", "bear-crawl", "swimming", "ski-erg",
+    "dancing", "boxing", "shadow-boxing", "butterfly-stretch", "chair-pose", "bridge-pose", "boat-pose",
+    "seated-forward-fold", "hip-circles", "leg-swings", "ankle-mobility-drill",
+  ]);
+  DRAWN.forEach((id) => DEMOS.add(id));
+  LIST.forEach((e) => { e.demo = DEMOS.has(e.id); e.drawn = DRAWN.has(e.id); });
 
   const BY_ID = new Map(LIST.map((e) => [e.id, e]));
 

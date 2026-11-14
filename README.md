@@ -21,10 +21,13 @@ same as every other KPR app.
   for the person to save. It calls KPR AI (`prudwesh/kpr-ai`, app id
   `fitness`), which must list `fitness` in its `CLIENTS` with the same
   fitness-only ground rules. Turn it off per device in Settings.
-- `demos/<exercise-id>/0.jpg, 1.jpg`: the start and end photos of 182
-  exercises, played as a loop in the exercise view. From
-  [Free Exercise DB](https://github.com/yuhonas/free-exercise-db), public
-  domain (Unlicense). Exercises not in `DEMOS` (`exercises.js`) have none.
+- `demos/<exercise-id>/0.jpg, 1.jpg`: every exercise's demo, the start and
+  end position played as a loop in the exercise view and in routines. 182
+  are photos from [Free Exercise DB](https://github.com/yuhonas/free-exercise-db)
+  (public domain, Unlicense); the other 44 (`DRAWN` in `exercises.js`) are
+  drawings made for KPR Fitness with `tools/draw-demos` (Python + Pillow:
+  poses in `poses.py`; from the repo root, `python3 tools/draw-demos/render.py demos <id>` redraws one). A new
+  exercise needs a demo here too: a photo pair, or a pose in `poses.py`.
 - `exercises.js`: the exercise library (226 exercises: muscle, equipment,
   type, how a set is logged, steps, tip) and the built-in programs. An
   exercise's id is its name in lower-case-with-dashes; never rename one,

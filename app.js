@@ -1074,7 +1074,6 @@
       if (f.category && e.category !== f.category) return false;
       if (f.only === "fav" && !isFav(e.id)) return false;
       if (f.only === "mine" && e.builtin) return false;
-      if (f.only === "demo" && !e.demo) return false;
       if (words.length) {
         const hay = (e.name + " " + (D.MUSCLES[e.muscle] || "") + " " + (D.EQUIPMENT[e.equipment] || "") + " " + (D.CATEGORIES[e.category] || "") + " " + e.secondary.map((m) => D.MUSCLES[m]).join(" ")).toLowerCase();
         if (!words.every((w) => hay.includes(w))) return false;
@@ -1090,7 +1089,7 @@
     const done = (derived.hist.get(e.id) || []).length;
     return `<button class="ex-card ${sel ? "sel" : ""}" data-ex="${esc(e.id)}" type="button">
       ${bodyMap(exHeat(e), { side: "auto" })}
-      <span class="t"><b>${esc(e.name)}</b><span><span class="tag acc">${esc(D.MUSCLES[e.muscle] || e.muscle)}</span><span class="tag">${esc(D.EQUIPMENT[e.equipment] || e.equipment)}</span>${e.builtin ? "" : `<span class="tag">Mine</span>`}${e.demo ? `<span class="tag demo-tag">${I("play", 10)} Demo</span>` : ""}</span>
+      <span class="t"><b>${esc(e.name)}</b><span><span class="tag acc">${esc(D.MUSCLES[e.muscle] || e.muscle)}</span><span class="tag">${esc(D.EQUIPMENT[e.equipment] || e.equipment)}</span>${e.builtin ? "" : `<span class="tag">Mine</span>`}</span>
         <span class="muted" style="font-size:12px">${esc(D.CATEGORIES[e.category] || "")}${done ? ` · done ${done}×` : ""}</span></span>
       ${sel !== undefined ? `<span class="check">${I("check", 14)}</span>` : isFav(e.id) ? `<span class="star">${I("starFill", 16)}</span>` : ""}
     </button>`;
@@ -1107,7 +1106,6 @@
         <button class="chip ${!f.muscle && !f.only ? "on" : ""}" data-m="" type="button">All</button>
         <button class="chip ${f.only === "fav" ? "on" : ""}" data-only="fav" type="button">${I("star", 13)} Favourites</button>
         <button class="chip ${f.only === "mine" ? "on" : ""}" data-only="mine" type="button">Mine</button>
-        <button class="chip ${f.only === "demo" ? "on" : ""}" data-only="demo" type="button">${I("play", 11)} With demo</button>
         ${Object.entries(D.MUSCLES).map(([k, v]) => `<button class="chip ${f.muscle === k ? "on" : ""}" data-m="${k}" type="button">${esc(v)}</button>`).join("")}
       </div>`;
   }
@@ -1153,7 +1151,7 @@
         <span class="demo-lbl" data-demo-lbl>Start</span>
         <button class="demo-pp" type="button" data-demo-pp aria-label="Pause demo">${I("pause", 16)}</button>
       </div>
-      <p class="demo-credit">Demo photos: <a href="https://github.com/yuhonas/free-exercise-db" target="_blank" rel="noopener">Free Exercise DB</a> (public domain)</p>`;
+      <p class="demo-credit">${ex.drawn ? "Demo drawing: KPR Fitness" : `Demo photos: <a href="https://github.com/yuhonas/free-exercise-db" target="_blank" rel="noopener">Free Exercise DB</a> (public domain)`}</p>`;
   }
   function runDemo(root) {
     const el = root.querySelector("[data-demo]");
@@ -1696,7 +1694,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.3.0",
+    appVersion: "1.3.1",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
