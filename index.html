@@ -173,7 +173,7 @@
   .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 
   /* exercise library */
-  .lib-bar { display: grid; gap: 10px; margin-bottom: 14px; position: sticky; top: var(--kpr-hdr-h, 60px); z-index: 5; background: var(--bg); padding: 10px 0 6px; }
+  .lib-bar { display: grid; gap: 10px; margin-bottom: 14px; position: sticky; top: var(--stick-top, 104px); z-index: 5; background: var(--bg); padding: 10px 0 6px; }
   .lib-filters { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; }
   .ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
   .ex-card { display: flex; gap: 12px; align-items: center; padding: 12px 12px 12px 10px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); cursor: pointer; text-align: left; width: 100%; min-width: 0; transition: border-color .12s, transform .12s; }
@@ -190,7 +190,7 @@
   .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }
 
   /* workout logger */
-  .wk-top { position: sticky; top: var(--kpr-hdr-h, 60px); z-index: 6; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line-2); margin-bottom: 14px; flex-wrap: wrap; }
+  .wk-top { position: sticky; top: calc(var(--stick-top, 104px) + 8px); z-index: 6; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line-2); margin-bottom: 14px; flex-wrap: wrap; }
   .wk-top .wk-name { flex: 1; min-width: 160px; background: none; border: 0; font-size: 18px; font-weight: 750; padding: 4px 0; letter-spacing: -.01em; }
   .wk-top .wk-name:focus { outline: none; border-bottom: 2px solid var(--accent); }
   .wk-stats { display: flex; gap: 16px; font-size: 12px; color: var(--muted); }
@@ -395,6 +395,16 @@
   #aiMic.on { background: var(--danger); color: #fff; }
   .ai-foot { margin: 0; padding: 2px 12px max(10px, env(safe-area-inset-bottom)); font-size: 11px; color: var(--muted); text-align: center; }
   @media (min-width: 1100px) { body.ai-open .content { margin-right: 420px; } }
+  /* Phones: kpr-core folds the page tabs into the ☰ menu. Here they stay as
+     a row under the header (it scrolls sideways when they don't fit) and the
+     menu doesn't list them again, as on the KPR Apps home page. "body >"
+     outranks kpr-core's own rule, which it adds after this sheet. */
+  @media screen and (max-width: 860px) {
+    body > .kpr-tabs { display: flex; top: calc(var(--kpr-hdr-h, 56px) + env(safe-area-inset-top)); gap: 2px; padding: 4px 10px; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+    body > .kpr-tabs > a { padding: 8px 10px; font-size: 13.5px; }
+    body > .kpr-tabs .kpr-tabs-sep { margin: 0 2px; }
+  }
+  #kpr-core-bmenu .kpr-bmenu-nav { display: none !important; }
   /* Hidden until ai.js shows it (kpr-hdr-keep's display would override [hidden]). */
   #aiBtn[hidden] { display: none !important; }
   /* Phones (kpr-core's header switches at 860px): the coach is an icon button
@@ -470,8 +480,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://core.kprapps.online/firebase-config.js"></script>
 <script src="https://core.kprapps.online/kpr-core.js?v=36"></script>
-<script src="exercises.js?v=1.3.4"></script>
-<script src="app.js?v=1.3.4"></script>
-<script src="ai.js?v=1.3.4"></script>
+<script src="exercises.js?v=1.3.5"></script>
+<script src="app.js?v=1.3.5"></script>
+<script src="ai.js?v=1.3.5"></script>
 </body>
 </html>

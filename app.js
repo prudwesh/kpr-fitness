@@ -676,9 +676,27 @@
   function go(name, arg) { const h = "#/" + name + (arg ? "/" + encodeURIComponent(arg) : ""); if (location.hash === h) render(); else location.hash = h; }
   addEventListener("hashchange", () => { closeMenu(); render(); scrollTo(0, 0); });
 
+  // Where the sticky header and tab row end, so bars that stick under them
+  // (exercise search, the workout's timer bar) sit below, not behind, them.
+  function measureStick() {
+    const t = $(".kpr-tabs"), h = $(".kpr-hdr");
+    const tabsOn = t && getComputedStyle(t).display !== "none";
+    const bottom = tabsOn ? t.getBoundingClientRect().height + (parseFloat(getComputedStyle(t).top) || 0) : (h ? h.getBoundingClientRect().height : 60);
+    document.documentElement.style.setProperty("--stick-top", Math.round(bottom) + "px");
+  }
+  addEventListener("resize", measureStick);
+  // On a phone the tab row scrolls sideways: keep the open page's tab in view.
+  function showTab() {
+    const t = $(".kpr-tabs"), on = t && t.querySelector(".on");
+    if (!on || t.scrollWidth <= t.clientWidth) return;
+    const l = on.offsetLeft - t.offsetLeft, r = l + on.offsetWidth;
+    if (l < t.scrollLeft + 8) t.scrollLeft = Math.max(0, l - 16);
+    else if (r > t.scrollLeft + t.clientWidth - 8) t.scrollLeft = r - t.clientWidth + 16;
+  }
   function render() {
     const r = currentRoute();
     $$(".kpr-tabs [data-nav]").forEach((a) => a.classList.toggle("on", a.dataset.nav === r.name));
+    measureStick(); showTab();
     tickFab();
     const v = $("#view");
     if (!me || !loaded) { v.innerHTML = `<div class="grid"><div class="skel"></div><div class="skel"></div></div>`; return; }
@@ -1697,7 +1715,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.3.4",
+    appVersion: "1.3.5",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
