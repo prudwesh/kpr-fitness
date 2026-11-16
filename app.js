@@ -685,6 +685,12 @@
     document.documentElement.style.setProperty("--stick-top", Math.round(bottom) + "px");
   }
   addEventListener("resize", measureStick);
+  // The workout's mini demos: one timer for all of them, start ↔ end. Off
+  // when the device asks for less motion, and while the page is hidden.
+  setInterval(() => {
+    if (document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.getAttribute("data-kpr-motion") === "calm") return;
+    $$(".exb-demo").forEach((d) => d.classList.toggle("end"));
+  }, 1100);
   // On a phone the tab row scrolls sideways: keep the open page's tab in view.
   function showTab() {
     const t = $(".kpr-tabs"), on = t && t.querySelector(".on");
@@ -909,7 +915,7 @@
         <td><button class="icon-btn sm del" data-del="${it.uid}:${i}" type="button" aria-label="Remove set">${I("x", 14)}</button></td></tr>`;
     }).join("");
     return `<div class="exb" data-item="${it.uid}">
-      <div class="exb-h"><button class="nm" data-how="${esc(it.ex)}" type="button">${esc(ex.name)}</button>
+      <div class="exb-h">${ex.demo ? `<button class="exb-demo${ex.drawn ? " drawn" : ""}" data-how="${esc(it.ex)}" type="button" aria-label="How to do ${esc(ex.name)}" title="How to do it"><img class="f0" src="demos/${encodeURIComponent(ex.id)}/0.jpg" alt="" decoding="async" /><img class="f1" src="demos/${encodeURIComponent(ex.id)}/1.jpg" alt="" decoding="async" /></button>` : ""}<button class="nm" data-how="${esc(it.ex)}" type="button">${esc(ex.name)}</button>
         ${it.rest ? `<span class="tag">${I("timer", 12)} ${fmtClock(it.rest)}</span>` : ""}
         <button class="icon-btn sm" data-menu data-imenu="${it.uid}" type="button" aria-label="Exercise options">${I("more", 16)}</button></div>
       <input class="exb-note" data-note="${it.uid}" value="${esc(it.note || "")}" placeholder="Add a note" maxlength="300" />
@@ -1715,7 +1721,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.3.5",
+    appVersion: "1.4.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
