@@ -1667,7 +1667,7 @@
   // header, boot
   // ===================================================================
   $("#startBtn").onclick = () => (active ? go("workout") : startWorkout());
-  $("#settingsBtn").onclick = () => { if (me && loaded && !loadErr) settingsModal(); };
+  $("#settingsBtn").onclick = $("#settingsIb").onclick = () => { if (me && loaded && !loadErr) settingsModal(); };
   $("#fab").onclick = () => go("workout");
   $("#q").addEventListener("input", (e) => {
     lib.q = e.target.value; lib.limit = 60;
@@ -1697,7 +1697,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.3.3",
+    appVersion: "1.3.4",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
