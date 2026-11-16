@@ -379,13 +379,57 @@
     const h = new Date().getHours();
     return (h < 5 ? "Night" : h < 12 ? "Morning" : h < 17 ? "Afternoon" : h < 21 ? "Evening" : "Night") + " workout";
   }
+  // ---- Warm-up ----
+  // Starting a routine (or repeating a workout) puts about 5 minutes of
+  // moving stretches first, chosen for the muscles the workout uses: a pulse
+  // raiser, then the moves that warm those muscles most. They're marked
+  // warm: true, shown under their own heading, and aren't saved with the
+  // workout (no sets, volume or records). Moving stretches before training;
+  // long holds belong at the end. Off per device in Settings.
+  const WARM_MOVES = [   // [exercise, sets, reps or seconds, muscles it warms]
+    ["jumping-jacks", 1, 60, ["cardio", "fullbody", "calves", "shoulders"]],
+    ["arm-circles", 1, 10, ["shoulders", "chest", "traps", "triceps", "biceps"]],
+    ["thoracic-rotation", 1, 8, ["back", "traps", "shoulders", "obliques", "chest"]],
+    ["cat-cow", 1, 10, ["lowerback", "back", "abs"]],
+    ["world-s-greatest-stretch", 1, 6, ["hamstrings", "glutes", "quads", "abductors", "adductors", "back"]],
+    ["leg-swings", 1, 10, ["hamstrings", "glutes", "quads", "abductors", "adductors"]],
+    ["hip-circles", 1, 10, ["glutes", "abductors", "adductors", "lowerback"]],
+    ["bodyweight-squat", 1, 10, ["quads", "glutes", "adductors"]],
+    ["lateral-lunge", 1, 8, ["adductors", "abductors", "glutes", "quads"]],
+    ["ankle-mobility-drill", 1, 10, ["calves"]],
+    ["bird-dog", 1, 8, ["abs", "lowerback", "glutes"]],
+    ["wrist-stretch", 1, 30, ["forearms", "biceps", "triceps"]],
+  ];
+  const WARM_KEY = "kprfitness.warmup";
+  const warmupOn = () => lsGet(WARM_KEY) !== "0";
+  function warmupFor(exIds) {
+    const exs = exIds.map((id) => exById(id)).filter((e) => !e.missing);
+    if (!exs.length) return [];
+    // A stretching, yoga or mobility session is its own warm-up.
+    const easy = exs.filter((e) => ["stretching", "yoga", "mobility"].includes(e.category)).length;
+    if (easy * 2 > exs.length) return [];
+    const want = {};
+    for (const e of exs) for (const [m, v] of Object.entries(exHeat(e))) want[m] = (want[m] || 0) + v;
+    const have = new Set(exIds);
+    const picks = [WARM_MOVES[0]];
+    const pool = WARM_MOVES.slice(1).filter((w) => !have.has(w[0]));
+    while (picks.length < 5 && pool.length) {
+      let best = -1, score = 0;
+      pool.forEach((w, i) => { const sc = w[3].reduce((n, m) => n + (want[m] || 0), 0); if (sc > score) { score = sc; best = i; } });
+      if (best < 0) break;
+      const [w] = pool.splice(best, 1);
+      w[3].forEach((m) => { if (want[m]) want[m] /= 2; });   // spread over the muscles, not five moves for one
+      picks.push(w);
+    }
+    return picks.map(([id, sets, target]) => Object.assign(makeItem(id, sets, target, 0), { warm: true }));
+  }
   function startRoutine(r) {
     const items = (r.items || []).filter((x) => x && x.ex).map((x) => makeItem(x.ex, clamp(x.sets || 3, 1, 20), x.reps || null, x.rest));
-    startWorkout({ name: r.name, items, routine: r.id || "" });
+    startWorkout({ name: r.name, items: (warmupOn() ? warmupFor(items.map((it) => it.ex)) : []).concat(items), routine: r.id || "" });
   }
   function repeatWorkout(w) {
     const items = (w.items || []).map((it) => { const m = makeItem(it.ex, Math.max(1, (it.sets || []).length)); m.rest = it.rest != null ? it.rest : m.rest; return m; });
-    startWorkout({ name: w.name, items, routine: w.routine || "" });
+    startWorkout({ name: w.name, items: (warmupOn() ? warmupFor(items.map((it) => it.ex)) : []).concat(items), routine: w.routine || "" });
   }
   function editWorkout(w) {
     if (active) { toast("Finish or discard the workout in progress first."); return; }
@@ -863,7 +907,13 @@
       return;
     }
     const a = active;
-    const done = a.items.reduce((n, it) => n + it.sets.filter((s) => s.done).length, 0);
+    const done = a.items.reduce((n, it) => n + (it.warm ? 0 : it.sets.filter((s) => s.done).length), 0);
+    const warms = a.items.filter((it) => it.warm), mains = a.items.filter((it) => !it.warm);
+    const warmHtml = warms.length
+      ? `<div class="wk-sec warm"><div class="grow"><b>🤸 Warm-up</b><small>About 5 minutes of moving stretches for the muscles in this workout. Tick each one as you go.</small></div><button class="btn ghost sm" id="wkSkipWarm" type="button">Skip warm-up</button></div>
+         ${warms.map((it) => itemBlock(it)).join("")}
+         ${mains.length ? `<div class="wk-sec"><div class="grow"><b>💪 Workout</b></div></div>` : ""}`
+      : mains.length && !a.editingId ? `<div class="row" style="margin:-4px 0 12px"><button class="btn ghost sm" id="wkAddWarm" type="button">🤸 Add warm-up stretches</button></div>` : "";
     v.innerHTML = `
       <div class="wk-top">
         <input class="wk-name" id="wkName" value="${esc(a.name)}" aria-label="Workout name" maxlength="120" />
@@ -875,7 +925,7 @@
         <button class="icon-btn" data-menu id="wkMenu" type="button" aria-label="Workout options">${I("more")}</button>
         <button class="btn primary" id="wkFinish" type="button">${a.editingId ? "Save" : "Finish"}</button>
       </div>
-      <div id="wkItems">${a.items.map((it, i) => itemBlock(it, i)).join("")}</div>
+      <div id="wkItems">${warmHtml}${mains.map((it) => itemBlock(it)).join("")}</div>
       ${a.items.length ? "" : `<div class="card empty"><b>No exercises yet</b>Add the exercises you're doing. Each one remembers what you did last time.</div>`}
       <div class="row" style="margin:14px 0"><button class="btn primary block lg" id="wkAdd" type="button">${I("plus")} Add exercises</button></div>
       <label class="lbl" for="wkNotes">Notes</label>
@@ -914,7 +964,7 @@
         <td><button class="ok" data-ok="${it.uid}:${i}" type="button" aria-label="Done">${I("check", 16)}</button></td>
         <td><button class="icon-btn sm del" data-del="${it.uid}:${i}" type="button" aria-label="Remove set">${I("x", 14)}</button></td></tr>`;
     }).join("");
-    return `<div class="exb" data-item="${it.uid}">
+    return `<div class="exb${it.warm ? " warm" : ""}" data-item="${it.uid}">
       <div class="exb-h">${ex.demo ? `<button class="exb-demo${ex.drawn ? " drawn" : ""}" data-how="${esc(it.ex)}" type="button" aria-label="How to do ${esc(ex.name)}" title="How to do it"><img class="f0" src="demos/${encodeURIComponent(ex.id)}/0.jpg" alt="" decoding="async" /><img class="f1" src="demos/${encodeURIComponent(ex.id)}/1.jpg" alt="" decoding="async" /></button>` : ""}<button class="nm" data-how="${esc(it.ex)}" type="button">${esc(ex.name)}</button>
         ${it.rest ? `<span class="tag">${I("timer", 12)} ${fmtClock(it.rest)}</span>` : ""}
         <button class="icon-btn sm" data-menu data-imenu="${it.uid}" type="button" aria-label="Exercise options">${I("more", 16)}</button></div>
@@ -927,12 +977,20 @@
   const refOf = (k) => { const [u, i] = k.split(":"); const it = findItem(u); return it ? { it, s: it.sets[+i], i: +i } : null; };
   function paintLive() {
     const vol = $("#wkVol"); if (vol) vol.textContent = volShow(liveVolume());
-    const st = $("#wkSets"); if (st) st.textContent = active.items.reduce((n, it) => n + it.sets.filter((s) => s.done).length, 0);
+    const st = $("#wkSets"); if (st) st.textContent = active.items.reduce((n, it) => n + (it.warm ? 0 : it.sets.filter((s) => s.done).length), 0);
   }
   function bindWorkout(v) {
     $("#wkName").oninput = (e) => { active.name = e.target.value.slice(0, 120); persistActive(); };
     $("#wkNotes").oninput = (e) => { active.notes = e.target.value.slice(0, 5000); persistActive(); };
     $("#wkAdd").onclick = () => pickExercises({ title: "Add exercises", onPick: addExercisesToActive });
+    const skipW = $("#wkSkipWarm");
+    if (skipW) skipW.onclick = () => { active.items = active.items.filter((it) => !it.warm); persistActive(); render(); toast("Warm-up skipped"); };
+    const addW = $("#wkAddWarm");
+    if (addW) addW.onclick = () => {
+      const w = warmupFor(active.items.map((it) => it.ex));
+      if (!w.length) { toast("This workout is already stretching — no warm-up needed."); return; }
+      active.items = w.concat(active.items); persistActive(); render(); scrollTo(0, 0);
+    };
     $("#wkFinish").onclick = finishWorkout;
     $("#wkDiscard").onclick = async () => {
       if (active.editingId) { clearActive(); go("history"); toast("Nothing changed"); return; }
@@ -1034,7 +1092,8 @@
     });
   }
   function finishWorkout() {
-    const a = active;
+    // The warm-up is guidance, not part of the saved workout.
+    const a = Object.assign({}, active, { items: active.items.filter((it) => !it.warm) });
     const hasNum = (s, tr) => (tr === "wr" || tr === "r" ? s.r > 0 : tr === "t" ? s.t > 0 : s.d > 0 || s.t > 0);
     const unticked = a.items.reduce((n, it) => n + it.sets.filter((s) => !s.done && hasNum(s, exById(it.ex, it.name).track)).length, 0);
     const doneSets = a.items.reduce((n, it) => n + it.sets.filter((s) => s.done).length, 0);
@@ -1612,6 +1671,7 @@
             <div><label class="lbl" for="sGoal">Workouts a week</label><input class="input" id="sGoal" type="number" min="1" max="14" value="${S.goal}" /></div>
             <div><label class="lbl" for="sH">Height (${isLb() ? "in" : "cm"})</label><input class="input" id="sH" type="number" min="0" max="${isLb() ? 118 : 300}" value="${heightShow}" placeholder="For BMI" /></div></div>
           <label class="row" style="margin-top:14px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="sSound" ${S.sound ? "checked" : ""} /> <span>Beep when rest is over</span></label>
+          <label class="row" style="margin-top:10px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="sWarm" ${warmupOn() ? "checked" : ""} /> <span>Start routines with a warm-up of moving stretches (on this device)</span></label>
           <label class="row" style="margin-top:10px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="sAi" ${!window.KPRFitAI || window.KPRFitAI.enabled() ? "checked" : ""} /> <span>Show the AI Coach (on this device)</span></label>
           <h3 style="margin:22px 0 6px;font-size:14px">Your data</h3>
           <p class="muted" style="margin:0 0 10px;font-size:13px">Download everything, or bring back a file you downloaded before.</p>
@@ -1628,6 +1688,7 @@
         const height = hv ? Math.round((isLb() ? hv * 2.54 : hv) * 10) / 10 : 0;
         saveSettings({ unit, rest: clamp(parseInt($("#sRest", m).value, 10) || 0, 0, 900), goal: clamp(parseInt($("#sGoal", m).value, 10) || 3, 1, 14), height: clamp(height, 0, 300), sound: $("#sSound", m).checked });
         if (window.KPRFitAI) window.KPRFitAI.setEnabled($("#sAi", m).checked);
+        lsSet(WARM_KEY, $("#sWarm", m).checked ? null : "0");
         closeModal(); toast("Settings saved"); rebuild(); render();
       };
       $("#sExp", m).onclick = exportJson;
@@ -1721,7 +1782,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.4.0",
+    appVersion: "1.5.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
