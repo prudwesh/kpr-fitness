@@ -889,7 +889,7 @@
     { id: "lose-fat", icon: "🔥", name: "Lose fat", tagline: "Including belly fat",
       about: "You can't burn fat from one spot: crunches alone won't shrink the belly. What works is losing fat all over, and the belly goes with it. Combine strength circuits (keep your muscle), cardio, a small calorie deficit and more daily steps.",
       week: "4 days: circuit A, cardio intervals, circuit B, steady cardio. Walk 8,000+ steps every day.",
-      tips: ["Aim to lose about 0.5–1% of your body weight a week; faster usually comes back.", "Eat plenty of protein and vegetables; they keep you full.", "Weigh yourself in the Body tab once a week, same time of day, and watch the trend, not single days.", "Sleep 7–9 hours: short sleep makes you hungrier."],
+      tips: ["Aim to lose about 0.5–1% of your body weight a week; faster usually comes back.", "Eat plenty of protein and vegetables; they keep you full.", "Weigh yourself under Progress → Body once a week, same time of day, and watch the trend, not single days.", "Sleep 7–9 hours: short sleep makes you hungrier."],
       routines: ["fat-loss-circuit-a", "fat-loss-intervals", "fat-loss-circuit-b", "fat-loss-steady", "hiit-20"] },
     { id: "six-pack", icon: "🎯", name: "Get a six-pack", tagline: "Visible, strong abs",
       about: "Everyone has a six-pack; it shows when body fat is low enough (roughly under 12–15% for men and 18–22% for women). So it takes two things: training the abs so they grow, and losing the fat that covers them.",

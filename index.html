@@ -174,7 +174,27 @@
 
   /* exercise library */
   .lib-bar { display: grid; gap: 10px; margin-bottom: 14px; position: sticky; top: var(--stick-top, 104px); z-index: 5; background: var(--bg); padding: 10px 0 6px; }
-  .lib-filters { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; }
+  .lib-filters { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .lib-more { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .lib-more[hidden] { display: none; }
+  .ex-thumb { width: 64px; height: 48px; border-radius: 10px; object-fit: cover; flex-shrink: 0; background: #eef2f7; border: 1px solid var(--line); }
+  .ex-thumb.drawn { object-fit: contain; }
+  /* Progress, History and Body: one tab, switched here */
+  .subnav { display: flex; gap: 4px; padding: 4px; margin: 0 0 14px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line); }
+  .subnav a { flex: 1; text-align: center; padding: 8px 6px; border-radius: 9px; font-weight: 650; font-size: 13.5px; color: var(--text-2); text-decoration: none; }
+  .subnav a.on { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+  /* Workout: warm-up as a simple checklist */
+  .wrow { display: flex; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; border-radius: 14px; background: var(--card); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); }
+  .wrow .nm { flex: 1; min-width: 0; font-size: 15px; font-weight: 650; color: var(--text); background: none; border: 0; text-align: left; cursor: pointer; padding: 0; }
+  .wrow .wt { color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; }
+  .wrow .ok { width: 44px; height: 40px; border-radius: 10px; border: 0; background: var(--card-2); color: var(--muted); cursor: pointer; display: inline-grid; place-items: center; flex-shrink: 0; }
+  .wrow.done { background: color-mix(in srgb, var(--good) 10%, var(--card)); }
+  .wrow.done .ok { background: var(--good); color: #fff; }
+  .wrow.done .nm { text-decoration: line-through; text-decoration-color: var(--muted); }
+  .wk-hint { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--card-2); color: var(--text-2); font-size: 13px; }
+  .upnext { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); margin: 0 0 14px; }
+  .upnext small { display: block; color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .upnext b { display: block; font-size: 15.5px; }
   .ex-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
   .ex-card { display: flex; gap: 12px; align-items: center; padding: 12px 12px 12px 10px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); cursor: pointer; text-align: left; width: 100%; min-width: 0; transition: border-color .12s, transform .12s; }
   .ex-card:hover { border-color: var(--line-2); transform: translateY(-1px); }
@@ -415,7 +435,7 @@
      outranks kpr-core's own rule, which it adds after this sheet. */
   @media screen and (max-width: 860px) {
     body > .kpr-tabs { display: flex; top: calc(var(--kpr-hdr-h, 56px) + env(safe-area-inset-top)); gap: 2px; padding: 4px 10px; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
-    body > .kpr-tabs > a { padding: 8px 10px; font-size: 13.5px; }
+    body > .kpr-tabs > a { flex: 1 1 0; text-align: center; padding: 8px 2px; font-size: 13.5px; }
     body > .kpr-tabs .kpr-tabs-sep { margin: 0 2px; }
   }
   #kpr-core-bmenu .kpr-bmenu-nav { display: none !important; }
@@ -441,8 +461,7 @@
     .split.mus { grid-template-columns: minmax(0, 110px) minmax(0, 1fr); }
     .hero { grid-template-columns: 1fr; }
     .hero .ring { justify-self: center; }
-    .lib-filters { grid-template-columns: 1fr 1fr; }
-    .lib-filters .input { grid-column: 1 / -1; }
+    .lib-more { grid-template-columns: 1fr 1fr; }
     .ex-detail { grid-template-columns: 1fr; }
     .ex-detail .bodymap svg { max-width: 100px; }
     .overlay { padding: 0; align-items: flex-end; }
@@ -471,13 +490,9 @@
 <nav class="kpr-tabs">
   <a href="#/today" data-nav="today">Today</a>
   <a href="#/workout" data-nav="workout">Workout</a>
-  <span class="kpr-tabs-sep"></span>
+  <a href="#/routines" data-nav="routines">Programs</a>
   <a href="#/exercises" data-nav="exercises">Exercises</a>
-  <a href="#/routines" data-nav="routines">Routines</a>
-  <span class="kpr-tabs-sep"></span>
-  <a href="#/history" data-nav="history">History</a>
   <a href="#/progress" data-nav="progress">Progress</a>
-  <a href="#/body" data-nav="body">Body</a>
 </nav>
 
 <main class="content" id="view"><div class="grid"><div class="skel"></div><div class="skel"></div></div></main>
@@ -494,8 +509,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://core.kprapps.online/firebase-config.js"></script>
 <script src="https://core.kprapps.online/kpr-core.js?v=36"></script>
-<script src="exercises.js?v=1.5.0"></script>
-<script src="app.js?v=1.5.0"></script>
-<script src="ai.js?v=1.5.0"></script>
+<script src="exercises.js?v=1.6.0"></script>
+<script src="app.js?v=1.6.0"></script>
+<script src="ai.js?v=1.6.0"></script>
 </body>
 </html>

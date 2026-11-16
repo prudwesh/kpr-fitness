@@ -199,7 +199,7 @@
           const byId = new Map(f.D.ROUTINES.map((r) => [r.id, r]));
           return {
             mine: d.routines.map(fmt),
-            // The built-in programs, grouped by goal (Routines tab → Programs).
+            // The built-in programs, grouped by goal (the Programs tab).
             programsByGoal: f.D.GOALS.map((g) => ({ goalId: g.id, goal: g.name, forWho: g.tagline, about: g.about, suggestedWeek: g.week, tips: g.tips,
               workouts: g.routines.map((id) => byId.get(id)).filter(Boolean).map(fmt) })),
           };
@@ -249,7 +249,7 @@
       "",
       `Today: ${f.ymd(Date.now())}. Units: ${f.wU()} and ${f.dU()}. Weekly goal: ${S.goal} workouts.`,
       "",
-      "App guide: Today (this week's goal ring, streak, muscles trained, last workout, records). Workout (start empty, from a routine, or repeat one; starting a routine puts a 5-minute warm-up of moving stretches for its muscles first, which Skip warm-up removes, or Add warm-up stretches adds to any workout; log sets; the Previous column shows last time; tap the set number for warm-up / drop / failure; tick a set to start the rest timer; Finish saves it, and can save it as a routine). Exercises (library with search and filters, each with steps, a muscle map and a demo; star favourites; New exercise for your own). Routines (yours, and Programs picked by goal: lose fat, six-pack, build muscle, get stronger, stay fit, tone up, just starting, train at home, build stamina, flexibility, glutes & legs; each with a suggested week, tips and workouts to Start or Copy). History (calendar, each workout: edit, repeat, save as routine, delete; Export CSV). Progress (charts, exercise progress, muscles worked, records, 1-rep-max and plate calculators). Body (weight, body fat, waist, BMI). Settings (units kg/lb, default rest, weekly goal, height, sound, download / import your data, AI Coach on or off).",
+      "App guide: tabs are Today, Workout, Programs, Exercises, Progress. Today (first visit: pick a goal; then the Up next workout of their program, streak, muscles trained, last workout, records). Workout (start empty, from a routine, or repeat one; starting a routine puts a 5-minute warm-up of moving stretches for its muscles first, which Skip warm-up removes, or Add warm-up stretches adds to any workout; log sets; the Previous column shows last time; tap the set number for warm-up / drop / failure; tick a set to start the rest timer; Finish saves it, and can save it as a routine). Exercises (library with search and filters, each with steps, a muscle map and a demo; star favourites; New exercise for your own). Programs tab (Up next, your own routines, and programs picked by goal: lose fat, six-pack, build muscle, get stronger, stay fit, tone up, just starting, train at home, build stamina, flexibility, glutes & legs; each with a suggested week, tips and workouts to Start or Copy). Progress tab, switched at its top between Stats, History and Body. History (calendar, each workout: edit, repeat, save as routine, delete; Export CSV). Progress (charts, exercise progress, muscles worked, records, 1-rep-max and plate calculators). Body (weight, body fat, waist, BMI). Settings (units kg/lb, default rest, weekly goal, height, sound, download / import your data, AI Coach on or off).",
     ].join("\n");
   }
 

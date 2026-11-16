@@ -718,7 +718,8 @@
   const ROUTES = ["today", "workout", "exercises", "routines", "history", "progress", "body"];
   function currentRoute() { const p = (location.hash || "").replace(/^#\/?/, "").split("/"); return { name: ROUTES.includes(p[0]) ? p[0] : "today", arg: decodeURIComponent(p[1] || "") }; }
   function go(name, arg) { const h = "#/" + name + (arg ? "/" + encodeURIComponent(arg) : ""); if (location.hash === h) render(); else location.hash = h; }
-  addEventListener("hashchange", () => { closeMenu(); render(); scrollTo(0, 0); });
+  // A new page (a tab, or the phone's Back button) closes anything open over the old one.
+  addEventListener("hashchange", () => { closeMenu(); if (modalStack.length) closeAllModals(); render(); scrollTo(0, 0); });
 
   // Where the sticky header and tab row end, so bars that stick under them
   // (exercise search, the workout's timer bar) sit below, not behind, them.
@@ -745,7 +746,8 @@
   }
   function render() {
     const r = currentRoute();
-    $$(".kpr-tabs [data-nav]").forEach((a) => a.classList.toggle("on", a.dataset.nav === r.name));
+    const tab = { history: "progress", body: "progress" }[r.name] || r.name;
+    $$(".kpr-tabs [data-nav]").forEach((a) => a.classList.toggle("on", a.dataset.nav === tab));
     measureStick(); showTab();
     tickFab();
     const v = $("#view");
@@ -785,10 +787,39 @@
     return `<div class="ring"><svg width="132" height="132" viewBox="0 0 132 132"><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--card-3)" stroke-width="12"/><circle cx="66" cy="66" r="${r}" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${c * (1 - f)}"/></svg><div><b>${value}<span style="font-size:15px;color:var(--muted)">/${goal}</span></b><span>this week</span></div></div>`;
   }
   const QUOTES = ["Small steps, every day.", "Show up. The rest follows.", "Strong is built one set at a time.", "Progress, not perfection.", "Your only competition is yesterday's you.", "Motion is lotion.", "Done is better than perfect.", "Consistency beats intensity."];
+  // The next workout in the plan the person is following: the routine after
+  // the last one they did from a program, round and round.
+  function upNext() {
+    const w = derived.workouts.find((x) => x.routine);
+    if (!w) return null;
+    const g = D.GOALS.find((x) => x.routines.includes(w.routine));
+    if (g) { const i = g.routines.indexOf(w.routine); return { r: findRoutine(g.routines[(i + 1) % g.routines.length]), goal: g }; }
+    const mine = derived.routines.find((r) => r.id === w.routine);
+    return mine ? { r: mine } : null;
+  }
+  const goalCards = () => `<div class="goals">${D.GOALS.map((g) => `<a class="goal-card" href="#/routines/${esc(g.id)}">
+      <span class="goal-ic" aria-hidden="true">${g.icon}</span>
+      <span class="goal-t"><b>${esc(g.name)}</b><small>${esc(g.tagline)}</small></span>
+      <span class="goal-n">${g.routines.length} workout${g.routines.length === 1 ? "" : "s"} ${I("right", 14)}</span>
+    </a>`).join("")}</div>`;
+  const upNextCard = (n) => (n && n.r ? `<div class="upnext"><div class="grow"><small>Up next${n.goal ? " · " + esc(n.goal.name) : ""}</small><b>${esc(n.r.name)}</b></div><button class="btn primary" data-start-r="${esc(n.r.id)}" type="button">${I("play", 14)} Start</button></div>` : "");
   function viewToday(v) {
     const ws = weekStats(), name = ((me && me.displayName) || "").split(" ")[0];
     const h = new Date().getHours();
     const hello = (h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening") + (name ? ", " + esc(name) : "");
+    // First visit: one question, not a page of zeros.
+    if (!derived.workouts.length && !active) {
+      v.innerHTML = `<div class="card hero" style="grid-template-columns:1fr"><div>
+          <h1>${hello} 👋</h1>
+          <p style="margin:0">Pick what you want to achieve. You'll get a ready-made plan: each workout has how-to demos, a warm-up, and remembers your numbers for next time.</p>
+        </div></div>
+        <div class="sec-t">What's your goal?</div>
+        ${goalCards()}
+        <div class="row" style="justify-content:center;margin-top:18px"><button class="btn" data-act="start" type="button">${I("plus", 16)} Or start an empty workout</button></div>`;
+      bindCommon(v);
+      return;
+    }
+    const next = !active && upNext();
     const quote = QUOTES[Math.floor(Date.now() / DAY) % QUOTES.length];
     const last = derived.workouts[0];
     const month = derived.workouts.filter((w) => w.start >= new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()).length;
@@ -801,9 +832,12 @@
           <h1>${hello}</h1>
           <p>${esc(quote)} ${ws.count >= ws.goal ? "You've hit this week's goal — nice." : `${ws.goal - ws.count} more workout${ws.goal - ws.count === 1 ? "" : "s"} to hit this week's goal.`}</p>
           <div class="row">
-            ${active ? `<button class="btn primary lg" data-act="resume" type="button">${I("play")} Resume workout</button>` : `<button class="btn primary lg" data-act="start" type="button">${I("plus")} Start empty workout</button>`}
-            <a class="btn lg" href="#/routines">Pick a routine</a>
+            ${active ? `<button class="btn primary lg" data-act="resume" type="button">${I("play")} Resume workout</button>`
+              : next && next.r ? `<button class="btn primary lg" data-start-r="${esc(next.r.id)}" type="button">${I("play")} Start ${esc(next.r.name)}</button>`
+              : `<a class="btn primary lg" href="#/routines">${I("play")} Pick a workout</a>`}
+            ${active ? "" : `<a class="btn lg" href="#/workout">Other workout</a>`}
           </div>
+          ${next && next.r ? `<p style="margin:10px 0 0;font-size:13px">Up next${next.goal ? " in <b>" + esc(next.goal.name) + "</b>" : ""}, after your last workout.</p>` : ""}
         </div>
         ${ring(ws.count, ws.goal)}
       </div>
@@ -884,19 +918,19 @@
   function viewWorkout(v) {
     if (!active) {
       const recent = derived.workouts.slice(0, 3);
-      v.innerHTML = `<div class="page-h"><div class="grow"><h1>Workout</h1><p>Start from scratch, from a routine, or repeat a past workout.</p></div></div>
+      v.innerHTML = `<div class="page-h"><div class="grow"><h1>Start a workout</h1></div></div>
+        ${upNextCard(upNext())}
         <div class="grid g2">
-          <div class="card" style="display:grid;gap:12px;align-content:start">
-            <h3 style="margin:0">Start empty</h3><p class="muted" style="margin:0">Add exercises as you go. Every set you tick is saved.</p>
-            <button class="btn primary lg" data-act="start" type="button">${I("plus")} Start empty workout</button>
-            <button class="btn" data-act="log" type="button">Log a past workout</button>
+          <div class="card" style="display:grid;gap:10px;align-content:start">
+            <a class="btn primary lg" href="#/routines">${I("play")} Choose a program</a>
+            <button class="btn lg" data-act="start" type="button">${I("plus")} Start empty workout</button>
+            <button class="btn ghost sm" data-act="log" type="button">Log a workout I already did</button>
           </div>
-          <div class="card"><div class="card-h"><h3>Repeat a recent workout</h3></div>
-            ${recent.length ? `<div class="list">${recent.map((w) => `<div class="row" style="flex-wrap:nowrap"><div class="grow">${workoutSummary(w, true)}</div><button class="btn sm" data-repeat="${esc(w.id)}" type="button">${I("repeat", 14)} Repeat</button></div>`).join("")}</div>` : `<p class="muted">Your recent workouts show here.</p>`}
-          </div>
+          ${recent.length ? `<div class="card"><div class="card-h"><h3>Do one again</h3></div>
+            <div class="list">${recent.map((w) => `<div class="row" style="flex-wrap:nowrap"><div class="grow">${workoutSummary(w, true)}</div><button class="btn sm" data-repeat="${esc(w.id)}" type="button">${I("repeat", 14)} Again</button></div>`).join("")}</div>
+          </div>` : ""}
         </div>
-        <div class="sec-t">Routines</div>
-        <div class="grid rgrid">${derived.routines.concat(D.ROUTINES).slice(0, 8).map((r) => routineCard(r, true)).join("")}</div>`;
+        ${derived.routines.length ? `<div class="sec-t">My routines</div><div class="grid rgrid">${derived.routines.map((r) => routineCard(r, true)).join("")}</div>` : ""}`;
       bindCommon(v);
       const base = v.onclick;
       v.onclick = (e) => {
@@ -911,7 +945,7 @@
     const warms = a.items.filter((it) => it.warm), mains = a.items.filter((it) => !it.warm);
     const warmHtml = warms.length
       ? `<div class="wk-sec warm"><div class="grow"><b>🤸 Warm-up</b><small>About 5 minutes of moving stretches for the muscles in this workout. Tick each one as you go.</small></div><button class="btn ghost sm" id="wkSkipWarm" type="button">Skip warm-up</button></div>
-         ${warms.map((it) => itemBlock(it)).join("")}
+         ${warms.map((it) => warmRow(it)).join("")}
          ${mains.length ? `<div class="wk-sec"><div class="grow"><b>💪 Workout</b></div></div>` : ""}`
       : mains.length && !a.editingId ? `<div class="row" style="margin:-4px 0 12px"><button class="btn ghost sm" id="wkAddWarm" type="button">🤸 Add warm-up stretches</button></div>` : "";
     v.innerHTML = `
@@ -925,7 +959,7 @@
         <button class="icon-btn" data-menu id="wkMenu" type="button" aria-label="Workout options">${I("more")}</button>
         <button class="btn primary" id="wkFinish" type="button">${a.editingId ? "Save" : "Finish"}</button>
       </div>
-      <div id="wkItems">${warmHtml}${mains.map((it) => itemBlock(it)).join("")}</div>
+      <div id="wkItems">${warmHtml}${derived.workouts.length || a.editingId || !mains.length ? "" : `<p class="wk-hint">💡 Type the weight and reps you did, then tap ✓. Grey numbers are suggestions: ✓ uses them if you leave the box empty. Tap a picture to see how it's done.</p>`}${mains.map((it) => itemBlock(it)).join("")}</div>
       ${a.items.length ? "" : `<div class="card empty"><b>No exercises yet</b>Add the exercises you're doing. Each one remembers what you did last time.</div>`}
       <div class="row" style="margin:14px 0"><button class="btn primary block lg" id="wkAdd" type="button">${I("plus")} Add exercises</button></div>
       <label class="lbl" for="wkNotes">Notes</label>
@@ -942,8 +976,18 @@
     return prev.filter((x) => warm(x) === kind)[nth] || null;
   }
   function liveVolume() { let n = 0; for (const it of active.items) for (const s of it.sets) if (s.done && s.k !== "w" && s.w && s.r) n += s.w * s.r; return n; }
+  const demoMini = (ex) => (ex.demo ? `<button class="exb-demo${ex.drawn ? " drawn" : ""}" data-how="${esc(ex.id)}" type="button" aria-label="How to do ${esc(ex.name)}" title="How to do it"><img class="f0" src="demos/${encodeURIComponent(ex.id)}/0.jpg" alt="" decoding="async" /><img class="f1" src="demos/${encodeURIComponent(ex.id)}/1.jpg" alt="" decoding="async" /></button>` : "");
+  // A warm-up move is one line: picture, name, how much, tick.
+  function warmRow(it) {
+    const ex = exById(it.ex, it.name), s = it.sets[0] || {};
+    const amt = s.tr ? (ex.track === "t" ? s.tr + " sec" : s.tr + " reps") : "";
+    return `<div class="wrow${s.done ? " done" : ""}" data-item="${it.uid}">${demoMini(ex)}<button class="nm" data-how="${esc(it.ex)}" type="button">${esc(ex.name)}</button><span class="wt">${esc(amt)}</span><button class="ok" data-wtick="${it.uid}" type="button" aria-label="Done" aria-pressed="${!!s.done}">${I("check", 18)}</button></div>`;
+  }
+  const noteInput = (it) => `<input class="exb-note" data-note="${it.uid}" value="${esc(it.note || "")}" placeholder="Add a note" maxlength="300" />`;
   function itemBlock(it, idx) {
+    if (it.warm) return warmRow(it);
     const ex = exById(it.ex, it.name), tr = ex.track, prev = lastSets(it.ex, active.editingId);
+    const hasPrev = prev.length > 0;   // no history yet: no "Previous" column full of dashes
     const head = { wr: [wU(), "Reps"], r: ["+" + wU(), "Reps"], t: ["Time", ""], dt: [dU(), "Time"] }[tr];
     let n = 0;
     const rows = it.sets.map((s, i) => {
@@ -959,17 +1003,17 @@
         : tr === "r" ? inp("w", wShow(s.w), "–", "decimal") + inp("r", s.r ?? "", phR, "numeric")
         : tr === "t" ? inp("t", s.t != null ? fmtClock(s.t) : "", phT || "0:00", "text") + "<td></td>"
         : inp("d", dShow(s.d), phD || "0", "decimal") + inp("t", s.t != null ? fmtClock(s.t) : "", phT || "0:00", "text");
-      return `<tr class="${s.done ? "done" : ""}" data-row="${it.uid}:${i}"><td><button class="k ${s.k}" data-kind="${it.uid}:${i}" type="button" title="Tap to change set type: warm-up, normal, drop set, failure">${lab}</button></td>
-        <td class="prev" data-prev="${it.uid}:${i}" title="Use last time's numbers">${esc(setText(tr, p)) || "–"}${s.pr ? '<span class="pr-badge">PR</span>' : ""}</td>${cells}
+      return `<tr class="${s.done ? "done" : ""}" data-row="${it.uid}:${i}"><td><button class="k ${s.k}" data-kind="${it.uid}:${i}" type="button" title="Tap to change set type: warm-up, normal, drop set, failure">${lab}</button>${!hasPrev && s.pr ? '<span class="pr-badge">PR</span>' : ""}</td>
+        ${hasPrev ? `<td class="prev" data-prev="${it.uid}:${i}" title="Use last time's numbers">${esc(setText(tr, p)) || "–"}${s.pr ? '<span class="pr-badge">PR</span>' : ""}</td>` : ""}${cells}
         <td><button class="ok" data-ok="${it.uid}:${i}" type="button" aria-label="Done">${I("check", 16)}</button></td>
         <td><button class="icon-btn sm del" data-del="${it.uid}:${i}" type="button" aria-label="Remove set">${I("x", 14)}</button></td></tr>`;
     }).join("");
     return `<div class="exb${it.warm ? " warm" : ""}" data-item="${it.uid}">
-      <div class="exb-h">${ex.demo ? `<button class="exb-demo${ex.drawn ? " drawn" : ""}" data-how="${esc(it.ex)}" type="button" aria-label="How to do ${esc(ex.name)}" title="How to do it"><img class="f0" src="demos/${encodeURIComponent(ex.id)}/0.jpg" alt="" decoding="async" /><img class="f1" src="demos/${encodeURIComponent(ex.id)}/1.jpg" alt="" decoding="async" /></button>` : ""}<button class="nm" data-how="${esc(it.ex)}" type="button">${esc(ex.name)}</button>
+      <div class="exb-h">${demoMini(ex)}<button class="nm" data-how="${esc(it.ex)}" type="button">${esc(ex.name)}</button>
         ${it.rest ? `<span class="tag">${I("timer", 12)} ${fmtClock(it.rest)}</span>` : ""}
         <button class="icon-btn sm" data-menu data-imenu="${it.uid}" type="button" aria-label="Exercise options">${I("more", 16)}</button></div>
-      <input class="exb-note" data-note="${it.uid}" value="${esc(it.note || "")}" placeholder="Add a note" maxlength="300" />
-      <table class="sets"><thead><tr><th>Set</th><th>Previous</th><th>${head[0]}</th><th>${head[1]}</th><th>${I("check", 13)}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      ${it.note ? noteInput(it) : ""}
+      <table class="sets"><thead><tr><th>Set</th>${hasPrev ? "<th>Last time</th>" : ""}<th>${head[0]}</th><th>${head[1]}</th><th>${I("check", 13)}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       <button class="btn ghost sm block" data-addset="${it.uid}" type="button" style="margin-top:6px">${I("plus", 14)} Add set</button>
     </div>`;
   }
@@ -1021,6 +1065,14 @@
     items.addEventListener("click", (e) => {
       const t = e.target.closest("button,[data-prev]"); if (!t) return;
       if (t.dataset.ok) return tick(t.dataset.ok);
+      if (t.dataset.wtick) {
+        const it = findItem(t.dataset.wtick); if (!it || !it.sets[0]) return;
+        const s = it.sets[0]; s.done = !s.done;
+        if (s.done && s.tr) { if (exById(it.ex).track === "t") s.t = s.tr; else s.r = s.tr; }
+        persistActive(); rerenderItem(it);
+        if (s.done && active.items.every((x) => !x.warm || x.sets.every((y) => y.done))) toast("Warm-up done — on to the workout 💪");
+        return;
+      }
       if (t.dataset.kind) { const r = refOf(t.dataset.kind); if (!r) return; r.s.k = { n: "w", w: "d", d: "f", f: "n" }[r.s.k] || "n"; persistActive(); rerenderItem(r.it); return; }
       if (t.dataset.prev) {
         const r = refOf(t.dataset.prev); if (!r) return;
@@ -1048,6 +1100,7 @@
         const idx = active.items.indexOf(it);
         openMenu(t, [
           { label: "How to do it", icon: "info", run: () => exerciseDetail(it.ex) },
+          { label: it.note ? "Edit note" : "Add a note", icon: "edit", run: () => { const el = $(`[data-item="${it.uid}"]`); if (!el) return; let inp = $(".exb-note", el); if (!inp) { el.querySelector(".exb-h").insertAdjacentHTML("afterend", noteInput(it)); inp = $(".exb-note", el); } inp.focus(); } },
           { label: "Rest timer: " + (it.rest ? fmtClock(it.rest) : "off"), icon: "timer", run: () => restPicker(it) },
           { label: "Replace exercise", icon: "swap", run: () => pickExercises({ title: "Replace " + it.name, single: true, onPick: (ids) => { const ex = exById(ids[0]); it.ex = ex.id; it.name = ex.name; it.sets.forEach((s) => (s.pr = false)); persistActive(); render(); } }) },
           idx > 0 ? { label: "Move up", icon: "up", run: () => { active.items.splice(idx - 1, 0, active.items.splice(idx, 1)[0]); persistActive(); render(); } } : null,
@@ -1174,7 +1227,7 @@
   function exCard(e, sel) {
     const done = (derived.hist.get(e.id) || []).length;
     return `<button class="ex-card ${sel ? "sel" : ""}" data-ex="${esc(e.id)}" type="button">
-      ${bodyMap(exHeat(e), { side: "auto" })}
+      ${e.demo ? `<img class="ex-thumb${e.drawn ? " drawn" : ""}" src="${demoSrc(e)}" alt="" loading="lazy" decoding="async" />` : bodyMap(exHeat(e), { side: "auto" })}
       <span class="t"><b>${esc(e.name)}</b><span><span class="tag acc">${esc(D.MUSCLES[e.muscle] || e.muscle)}</span><span class="tag">${esc(D.EQUIPMENT[e.equipment] || e.equipment)}</span>${e.builtin ? "" : `<span class="tag">Mine</span>`}</span>
         <span class="muted" style="font-size:12px">${esc(D.CATEGORIES[e.category] || "")}${done ? ` · done ${done}×` : ""}</span></span>
       ${sel !== undefined ? `<span class="check">${I("check", 14)}</span>` : isFav(e.id) ? `<span class="star">${I("starFill", 16)}</span>` : ""}
@@ -1184,6 +1237,9 @@
     const opt = (o, cur, all) => `<option value="">${all}</option>` + Object.entries(o).map(([k, v]) => `<option value="${k}" ${cur === k ? "selected" : ""}>${esc(v)}</option>`).join("");
     return `<div class="lib-filters">
         <input class="input" id="${idp}q" type="search" placeholder="Search ${allEx().length} exercises" value="${esc(f.q)}" autocomplete="off" />
+        <button class="btn" id="${idp}ft" type="button" aria-expanded="${!!f.open}" aria-controls="${idp}more">${filterLabel(f)}</button>
+      </div>
+      <div class="lib-more" id="${idp}more" ${f.open ? "" : "hidden"}>
         <select class="select" id="${idp}eq" aria-label="Equipment">${opt(D.EQUIPMENT, f.equipment, "Any equipment")}</select>
         <select class="select" id="${idp}cat" aria-label="Type">${opt(D.CATEGORIES, f.category, "Any type")}</select>
         <select class="select" id="${idp}sort" aria-label="Sort"><option value="az">A–Z</option><option value="done" ${f.sort === "done" ? "selected" : ""}>Most done</option></select>
@@ -1195,7 +1251,11 @@
         ${Object.entries(D.MUSCLES).map(([k, v]) => `<button class="chip ${f.muscle === k ? "on" : ""}" data-m="${k}" type="button">${esc(v)}</button>`).join("")}
       </div>`;
   }
-  function bindFilterBar(root, f, idp, onChange) {
+  const filterLabel = (f) => { const n = (f.equipment ? 1 : 0) + (f.category ? 1 : 0); return "Filters" + (n ? ` (${n})` : ""); };
+  function bindFilterBar(root, f, idp, onChange0) {
+    const ft = $("#" + idp + "ft", root);
+    const onChange = (x) => { ft.textContent = filterLabel(f); onChange0(x); };
+    ft.onclick = () => { f.open = !f.open; $("#" + idp + "more", root).hidden = !f.open; ft.setAttribute("aria-expanded", f.open); };
     const q = $("#" + idp + "q", root);
     q.oninput = () => { f.q = q.value; f.limit = 60; onChange(true); };
     $("#" + idp + "eq", root).onchange = (e) => { f.equipment = e.target.value; f.limit = 60; onChange(); };
@@ -1387,16 +1447,13 @@
       bindCommon(v);
       return;
     }
-    v.innerHTML = `<div class="page-h"><div class="grow"><h1>Routines</h1><p>Save the workouts you repeat. Starting one fills in last time's numbers.</p></div>
-        <button class="btn primary" id="newR" type="button">${I("plus", 16)} New routine</button></div>
-      <div class="sec-t" style="margin-top:6px">My routines</div>
-      ${derived.routines.length ? `<div class="grid rgrid">${derived.routines.map((r) => routineCard(r)).join("")}</div>` : `<div class="card empty" style="padding:30px"><b>No routines yet</b>Make one, copy a program below, or tick “save as a routine” when you finish a workout.</div>`}
-      <div class="sec-t">Programs — what do you want to do?</div>
-      <div class="goals">${D.GOALS.map((g) => `<a class="goal-card" href="#/routines/${esc(g.id)}">
-          <span class="goal-ic" aria-hidden="true">${g.icon}</span>
-          <span class="goal-t"><b>${esc(g.name)}</b><small>${esc(g.tagline)}</small></span>
-          <span class="goal-n">${g.routines.length} workout${g.routines.length === 1 ? "" : "s"} ${I("right", 14)}</span>
-        </a>`).join("")}</div>`;
+    const mine = derived.routines.length ? `<div class="sec-t" style="margin-top:6px">My routines</div><div class="grid rgrid">${derived.routines.map((r) => routineCard(r)).join("")}</div>` : "";
+    v.innerHTML = `<div class="page-h"><div class="grow"><h1>Programs</h1><p>Pick a goal to get a plan of ready-made workouts.</p></div>
+        <button class="btn" id="newR" type="button">${I("plus", 16)} My own routine</button></div>
+      ${upNextCard(upNext())}
+      ${mine}
+      <div class="sec-t" style="margin-top:6px">What do you want to do?</div>
+      ${goalCards()}`;
     $("#newR").onclick = () => routineEditor({ name: "", notes: "", items: [] });
     bindCommon(v);
   }
@@ -1446,6 +1503,7 @@
   // ===================================================================
   // History
   // ===================================================================
+  const subnav = (on) => `<nav class="subnav" aria-label="Progress">${[["progress", "Stats"], ["history", "History"], ["body", "Body"]].map(([k, l]) => `<a href="#/${k}" class="${on === k ? "on" : ""}" ${on === k ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>`;
   function viewHistory(v) {
     const now = new Date();
     if (!ui.hist.month) ui.hist.month = ymd(new Date(now.getFullYear(), now.getMonth(), 1));
@@ -1460,7 +1518,7 @@
     const groups = [];
     for (const w of list) { const k = new Date(w.start).toLocaleDateString(undefined, { month: "long", year: "numeric" }); if (!groups.length || groups[groups.length - 1].k !== k) groups.push({ k, ws: [] }); groups[groups.length - 1].ws.push(w); }
     const monthCount = derived.workouts.filter((w) => { const d = new Date(w.start); return d.getFullYear() === y && d.getMonth() === mo; });
-    v.innerHTML = `<div class="page-h"><div class="grow"><h1>History</h1><p>${derived.workouts.length} workout${derived.workouts.length === 1 ? "" : "s"} logged.</p></div>
+    v.innerHTML = `${subnav("history")}<div class="page-h"><div class="grow"><h1>History</h1><p>${derived.workouts.length} workout${derived.workouts.length === 1 ? "" : "s"} logged.</p></div>
         <button class="btn" id="exportCsv" type="button" ${derived.workouts.length ? "" : "disabled"}>${I("download", 15)} Export CSV</button></div>
       <div class="split">
         <div class="card">
@@ -1538,7 +1596,7 @@
       for (const { w, it } of derived.hist.get(x.id)) for (const s of it.sets || []) if (counts(s)) { const v = e1rm(s.w, s.r); if (v > best) { best = v; bs = s; bw = w; } }
       return { ex: x.ex, best, set: bs, w: bw };
     }).filter((r) => r.best > 0).sort((a, b) => b.best - a.best).slice(0, 12);
-    v.innerHTML = `<div class="page-h"><div class="grow"><h1>Progress</h1><p>How your training is adding up.</p></div></div>
+    v.innerHTML = `${subnav("progress")}<div class="page-h"><div class="grow"><h1>Progress</h1><p>How your training is adding up.</p></div></div>
       <div class="grid g4">
         <div class="card stat"><span>Workouts · 30 days</span><b>${last30.length}</b><small>${fmtNum(last30.length / 4.3, 1)} a week</small></div>
         <div class="card stat"><span>Time · 30 days</span><b>${fmtDur(last30.reduce((a, w) => a + ((w.end || w.start) - w.start), 0))}</b><small>avg ${last30.length ? fmtDur(last30.reduce((a, w) => a + ((w.end || w.start) - w.start), 0) / last30.length) : "–"}</small></div>
@@ -1614,7 +1672,7 @@
     const since = ui.body.range ? ymd(Date.now() - ui.body.range * DAY) : "";
     const pts = withW.filter((b) => !since || b.date >= since).slice().reverse().map((b) => ({ x: fromYmd(b.date).getTime(), y: isLb() ? b.weight * LB : b.weight, tip: `<b>${wShow(b.weight)} ${wU()}</b>${fmtDate(fromYmd(b.date).getTime())}` }));
     const cm = (n) => (isLb() ? fmtNum(n / 2.54, 1) + " in" : fmtNum(n, 1) + " cm");
-    v.innerHTML = `<div class="page-h"><div class="grow"><h1>Body</h1><p>Track your weight and measurements.</p></div></div>
+    v.innerHTML = `${subnav("body")}<div class="page-h"><div class="grow"><h1>Body</h1><p>Track your weight and measurements.</p></div></div>
       <div class="grid g4">
         <div class="card stat"><span>Weight</span><b>${latest ? wShow(latest.weight) + " " + wU() : "–"}</b><small>${latest ? fmtDate(fromYmd(latest.date).getTime(), { month: "short", day: "numeric" }) : "No entries yet"}</small></div>
         <div class="card stat"><span>30-day change</span><b>${latest && m30 && m30 !== latest ? (latest.weight - m30.weight >= 0 ? "+" : "−") + wShow(Math.abs(latest.weight - m30.weight)) + " " + wU() : "–"}</b><small>since ${m30 ? fmtDate(fromYmd(m30.date).getTime(), { month: "short", day: "numeric" }) : "–"}</small></div>
@@ -1782,7 +1840,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.5.0",
+    appVersion: "1.6.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
