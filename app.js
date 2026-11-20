@@ -72,6 +72,7 @@
     upload: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
     pause: '<path fill="currentColor" stroke="none" d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/>',
     spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
     mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
     send: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     volume: '<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
@@ -1955,6 +1956,7 @@
         const slot = it.sets.find((x) => !x.done);
         if (slot) Object.assign(slot, s); else it.sets.push(Object.assign(newSet(ex), s));
       }
+      if (input.note) it.note = [it.note, String(input.note)].filter(Boolean).join(" · ").slice(0, 500);
       persistActive(); render();
       return done(snap, `Logged ${plural(given.length, "set")} of ${ex.name}: ${given.map((s) => setText(ex.track, s)).join(", ")}`);
     },
@@ -2015,17 +2017,23 @@
     // A workout done earlier, straight into history.
     logPastWorkout(input) {
       const date = /^\d{4}-\d{2}-\d{2}$/.test(input.date || "") ? input.date : ymd(Date.now());
+      if (date > ymd(Date.now())) return { error: "That date is in the future." };
+      const mins = clamp(parseInt(input.minutes, 10) || 60, 1, 1440);
       const start = fromYmd(date);
-      const [hh, mm] = String(input.time || "18:00").split(":").map(Number);
-      start.setHours(clamp(hh || 0, 0, 23), clamp(mm || 0, 0, 59), 0, 0);
-      if (start.getTime() > Date.now()) return { error: "That's in the future." };
+      if (/^\d{1,2}:\d{2}$/.test(input.time || "")) {
+        const [hh, mm] = input.time.split(":").map(Number);
+        start.setHours(clamp(hh, 0, 23), clamp(mm, 0, 59), 0, 0);
+      } else if (date === ymd(Date.now())) {
+        // Done today, time not given: it ended just now.
+        start.setTime(Math.max(start.getTime(), Date.now() - mins * 60000));
+      } else start.setHours(18, 0, 0, 0);
+      if (start.getTime() > Date.now()) return { error: "That start time is still to come today. Leave time out, or give an earlier one." };
       const items = (input.items || []).map((x) => {
         const ex = x && knownEx(x.ex); if (!ex) return null;
         const sets = (Array.isArray(x.sets) ? x.sets : []).slice(0, 30).map((s) => coachSet(ex.track, s, true)).filter((s) => hasNum(s, ex.track)).map(({ k, w, r, d, t }) => ({ k, w, r, d, t }));
-        return sets.length ? { ex: ex.id, name: ex.name, note: "", rest: lifts(ex.track) ? S.rest : 0, sets } : null;
+        return sets.length ? { ex: ex.id, name: ex.name, note: String(x.note || "").slice(0, 500), rest: lifts(ex.track) ? S.rest : 0, sets } : null;
       }).filter(Boolean).slice(0, 60);
       if (!items.length) return { error: "No sets to save: each exercise needs a library id and sets with numbers." };
-      const mins = clamp(parseInt(input.minutes, 10) || 60, 1, 1440);
       const name = String(input.name || "Workout").trim().slice(0, 120);
       const snap = coachSnap([]);
       const id = saveDoc(null, { kind: "workout", name, date, start: start.getTime(), end: start.getTime() + mins * 60000, notes: String(input.notes || "").slice(0, 5000), items, routine: "" }, "save your workout");
@@ -2112,7 +2120,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.7.2",
+    appVersion: "1.8.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
