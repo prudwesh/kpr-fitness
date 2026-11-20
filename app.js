@@ -854,6 +854,7 @@
         <div class="card stat"><span>All time</span><b>${derived.workouts.length}</b><small>workouts logged</small></div>
         <div class="card stat"><span>Records</span><b>${derived.prs.length}</b><small>personal bests set</small></div>
       </div>
+      <div id="aiHome" style="margin-top:16px" hidden></div>
       <div class="grid g3" style="margin-top:16px">
         <div class="card"><div class="card-h"><h3>Muscles this week</h3><span class="sub">last 7 days</span></div>
           ${Object.keys(heat).length ? bodyMap(heat) + `<div class="legend"><span><i style="background:color-mix(in srgb, var(--accent) 35%, var(--card-3))"></i>A little</span><span><i style="background:var(--accent)"></i>A lot</span></div>` : `<div class="empty" style="padding:30px 10px">${bodyMap({})}<p>Log a workout to see which muscles you've trained.</p></div>`}
@@ -868,6 +869,8 @@
       <div class="sec-t">Quick start</div>
       <div class="grid rgrid">${routines.map((r) => routineCard(r, true)).join("")}</div>`;
     bindCommon(v);
+    // The AI's "Coach's take" KPIs (ai.js), when the coach is on.
+    if (window.KPRFitAI && window.KPRFitAI.paintHome) window.KPRFitAI.paintHome($("#aiHome"));
   }
   // The workout in progress on Today (the AI coach can add to it too).
   function todayWorkoutCard() {
@@ -1749,7 +1752,7 @@
           <p class="muted" style="margin:0 0 10px;font-size:13px">Download everything, or bring back a file you downloaded before.</p>
           <div class="row"><button class="btn" id="sExp" type="button">${I("download", 15)} Download (JSON)</button><button class="btn" id="sCsv" type="button">${I("download", 15)} Workouts (CSV)</button><button class="btn" id="sImp" type="button">${I("upload", 15)} Import JSON</button><input type="file" id="sFile" accept="application/json,.json" hidden /></div>
           <h3 style="margin:22px 0 6px;font-size:14px">About &amp; privacy</h3>
-          <p class="muted" style="margin:0;font-size:13px;line-height:1.55">KPR Fitness keeps your workouts, routines, exercises, body entries and settings in your own KPR account. Only you can see them — not other users and not KPR admins. Nothing is shared or sold. The AI Coach sends nothing until you ask it something; then your messages, and the training data it looks up to answer, go through KPR AI to Claude (Anthropic) and aren't kept by KPR Fitness. Exercise demo photos come from Free Exercise DB (public domain). Delete a workout or entry and it's gone for good. The exercise how-tos are general guidance, not medical advice: check with a doctor before starting a new training plan, and stop if something hurts.</p>`,
+          <p class="muted" style="margin:0;font-size:13px;line-height:1.55">KPR Fitness keeps your workouts, routines, exercises, body entries and settings in your own KPR account. Only you can see them — not other users and not KPR admins. Nothing is shared or sold. The AI Coach sends nothing until you ask it something; then your messages, and the training data it looks up to answer, go through KPR AI to Claude (Anthropic) and aren't kept by KPR Fitness. While the coach is on, the Coach's take box on Today also sends a summary of your recent training (workouts, exercise bests, muscles worked, body weight, age and height) the same way, at most about once a day or when your workouts change. Exercise demo photos come from Free Exercise DB (public domain). Delete a workout or entry and it's gone for good. The exercise how-tos are general guidance, not medical advice: check with a doctor before starting a new training plan, and stop if something hurts.</p>`,
         foot: `<button class="btn" data-x2 type="button">Close</button><button class="btn primary" id="sSave" type="button">Save</button>`,
       });
       m.querySelector("[data-x2]").onclick = closeModal;
@@ -2120,7 +2123,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.8.0",
+    appVersion: "1.9.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,

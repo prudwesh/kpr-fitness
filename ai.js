@@ -405,6 +405,9 @@
     try { const u = window.firebase && firebase.auth().currentUser; return u ? await u.getIdToken() : null; } catch { return null; }
   }
   async function callAI() {
+    return post({ system: systemPrompt(), tools: TOOLS, messages: convo });
+  }
+  async function post(body) {
     const t = await token();
     if (!t) throw new AiDown("signed-out");
     let res;
@@ -412,7 +415,7 @@
       res = await fetch(KPR_AI_URL, {
         method: "POST",
         headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ app: "fitness", system: systemPrompt(), tools: TOOLS, messages: convo }),
+        body: JSON.stringify(Object.assign({ app: "fitness" }, body)),
       });
     } catch { throw new AiDown("unreachable"); }
     if (!res.ok) {
@@ -769,6 +772,121 @@
     if (!on && isOpen()) open(false);
   }
 
+  // ---------------------------------------------------------------- home insights
+  // The "Coach's take" box on Today: a headline and four KPI tiles the AI
+  // writes from a summary of the person's recent training, worked out here
+  // (one request, no tools). Kept on the device and written again at most
+  // once a day, or when a workout is added, changed or removed; ↻ forces it.
+  // Off with the AI Coach (Settings).
+  const K_HOME = () => "kprfitness.ai.home." + ((F().user() || {}).uid || "");
+  const TONES = ["up", "down", "steady", "alert"];
+  let homeBusy = false, homeErr = "", homeErrFp = "";
+  function homeData() {
+    const f = F(), d = f.derived(), S = f.settings(), now = Date.now();
+    const mins = (w) => Math.round(((w.end || w.start) - w.start) / 60000);
+    const windows = [0, 1, 2, 3].map((i) => {
+      const list = d.workouts.filter((w) => w.start <= now - i * 7 * DAY && w.start > now - (i + 1) * 7 * DAY);
+      return { daysAgo: `${i * 7}-${(i + 1) * 7}`, workouts: list.length, minutes: list.reduce((n, w) => n + mins(w), 0),
+        sets: list.reduce((n, w) => n + f.workoutSets(w), 0), volume: vtxt(list.reduce((n, w) => n + f.workoutVolume(w), 0)) };
+    });
+    // Each exercise done in the last 8 weeks: its main measure, last 4 weeks against the 4 before.
+    const exercises = [];
+    for (const [id, list] of d.hist) {
+      const recent = list.filter(({ w }) => w.start > now - 56 * DAY);
+      if (!recent.length) continue;
+      const ex = f.exById(id, list[0].it.name), [metric, label] = f.METRICS[ex.track][0];
+      const span = (a, b) => f.bestMetric(recent.filter(({ w }) => w.start > now - a * DAY && w.start <= now - b * DAY), ex.track, metric);
+      const now4 = span(28, 0), before4 = span(56, 28);
+      exercises.push({ name: ex.name, muscle: f.D.MUSCLES[ex.muscle], sessions8w: recent.length, lastDone: f.ymd(list[list.length - 1].w.start),
+        measure: label, last4w: now4 == null ? null : f.metricText(ex.track, metric, now4), prev4w: before4 == null ? null : f.metricText(ex.track, metric, before4),
+        change: now4 && before4 ? Math.round(((metric === "pace" ? before4 / now4 : now4 / before4) - 1) * 100) + "%" : null });
+    }
+    exercises.sort((a, b) => b.sessions8w - a.sessions8w);
+    const heat = f.heatSince(now - 14 * DAY), M = f.D.MUSCLES;
+    const ws = f.weekStats(), last = d.workouts[0];
+    const bodyW = d.body.filter((b) => b.weight > 0);
+    return {
+      today: f.ymd(now), units: { weight: f.wU(), distance: f.dU() }, profile: profileOut(),
+      weeklyGoal: ws.goal, workoutsThisWeek: ws.count, weekStreak: ws.streak, workoutsAllTime: d.workouts.length,
+      daysSinceLastWorkout: last ? Math.floor((now - last.start) / DAY) : null,
+      last7DayWindows: windows,
+      exercises: exercises.slice(0, 12),
+      setsPerMuscleLast14Days: Object.entries(heat).filter(([k]) => M[k]).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${M[k]} ${Math.round(n * 10) / 10}`),
+      musclesNotTrained14Days: Object.keys(M).filter((k) => !heat[k] && !["fullbody", "cardio", "neck"].includes(k)).map((k) => M[k]),
+      recordsLast30Days: d.prs.filter((p) => p.w.start > now - 30 * DAY).slice(0, 8).map((p) => `${f.ymd(p.w.start)} ${p.name}: ${f.setText(p.track, p.set)}`),
+      bodyWeight: bodyW.length ? { latest: wtxt(bodyW[0].weight) + " on " + bodyW[0].date, thirtyDaysBefore: (() => { const t = f.ymd(now - 30 * DAY), o = bodyW.find((b) => b.date <= t); return o ? wtxt(o.weight) + " on " + o.date : null; })() } : null,
+    };
+  }
+  const HOME_SYSTEM = [
+    "You write the 'Coach's take' box on the Today page of KPR Fitness, a workout tracker: an at-a-glance AI analysis of the person's own recent training.",
+    "You get a JSON summary of their training. Use only its numbers; never invent any. Today's date is in it.",
+    "Reply with only a JSON object, no other text and no code fence:",
+    '{"headline": "one encouraging, specific sentence about how their training is going (max 110 characters)",',
+    ' "kpis": [ exactly 4 of {"label": "2-3 words", "value": "short figure, max 10 characters, e.g. +7.5 kg, 3/4, 12 days", "note": "what it means or what to do next, max 70 characters", "tone": "up | down | steady | alert"} ]}',
+    "Pick the 4 most useful things for them right now, e.g. consistency against their weekly goal, the exercise that improved most (or stalled), training load trend (sets or volume vs the weeks before), muscle balance (a muscle group they're neglecting), a recent record, time since the last workout, body-weight trend.",
+    "tone: up = going well, down = slipping, alert = needs attention soon, steady = holding. Use their units. Plain words, no jargon, no medical advice, no emoji.",
+    "If they have very little data, say so kindly and make the tiles about getting started (e.g. first goal, next workout).",
+  ].join("\n");
+  function homeFp() {
+    const d = F().derived(), w = d.workouts;
+    let sum = 0; for (const x of w) sum = (sum + (x.end || x.start) % 100000 + (x.items || []).length) % 1e9;
+    return [F().ymd(Date.now()), w.length, w[0] ? w[0].id : "", sum, F().settings().unit].join("|");
+  }
+  const homeCache = () => { try { return JSON.parse(ls.get(K_HOME()) || "null"); } catch { return null; } };
+  function cleanHome(o) {
+    if (!o || typeof o !== "object" || !Array.isArray(o.kpis)) return null;
+    const cut = (v, n) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, n);
+    const kpis = o.kpis.slice(0, 4).map((k) => ({ label: cut(k && k.label, 30), value: cut(k && k.value, 14), note: cut(k && k.note, 110), tone: TONES.includes(k && k.tone) ? k.tone : "steady" })).filter((k) => k.label && k.value);
+    return kpis.length ? { headline: cut(o.headline, 160), kpis } : null;
+  }
+  async function loadHome(force) {
+    if (homeBusy) return;
+    const fp = homeFp(), c = homeCache();
+    if (!force && c && c.fp === fp) return;
+    homeBusy = true; homeErr = ""; homeErrFp = fp; paintHome();
+    try {
+      const r = await post({ system: HOME_SYSTEM, messages: [{ role: "user", content: [{ type: "text", text: "My training summary:\n" + JSON.stringify(homeData()) }] }] });
+      const t = r.message.content.filter((b) => b.type === "text").map((b) => b.text).join("");
+      let data = null;
+      try { data = cleanHome(JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1))); } catch {}
+      if (!data) throw new AiDown("error");
+      ls.set(K_HOME(), JSON.stringify({ fp, at: Date.now(), data }));
+    } catch (e) {
+      homeErr = (e && e.reason === "limit") ? DOWN.limit : (e && e.reason === "signed-out") ? DOWN["signed-out"] : "Couldn't get the coach's take right now.";
+    }
+    homeBusy = false; paintHome();
+  }
+  function paintHome(el) {
+    el = el || document.getElementById("aiHome");
+    if (!el) return;
+    const f = F();
+    if (!enabled() || !f || !f.ready() || !f.derived().workouts.length) { el.hidden = true; return; }
+    el.hidden = false;
+    const c = homeCache(), data = c && c.data;
+    const stale = c && c.fp !== homeFp();
+    const ago = c ? (() => { const m = Math.round((Date.now() - c.at) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : f.ymd(c.at); })() : "";
+    const arrow = { up: "up", down: "down", steady: "right", alert: "info" };
+    el.innerHTML = `<div class="card ai-home">
+      <div class="card-h"><h3>${f.I("spark", 16)} Coach's take</h3>
+        <span class="row" style="gap:6px;flex-wrap:nowrap"><span class="sub">${homeBusy ? "Thinking…" : esc(ago)}</span>
+        <button class="icon-btn sm" type="button" data-ai-home-refresh title="Refresh" aria-label="Refresh the coach's take" ${homeBusy ? "disabled" : ""}>${f.I("repeat", 15)}</button></span></div>
+      ${data ? `${data.headline ? `<p class="ai-home-h">${esc(data.headline)}</p>` : ""}
+        <div class="ai-kpis">${data.kpis.map((k) => `<button type="button" class="ai-kpi t-${k.tone}" data-ai-kpi="${esc(k.label)}" title="Ask the coach about this">
+          <span class="ai-kpi-l">${esc(k.label)}</span><b>${esc(k.value)} <i>${f.I(arrow[k.tone], 14)}</i></b><small>${esc(k.note)}</small></button>`).join("")}</div>`
+        : homeBusy ? `<div class="ai-kpis">${"<div class=\"ai-kpi skel\"></div>".repeat(4)}</div>`
+        : `<p class="muted" style="margin:0">${esc(homeErr || "Your coach will look over your training here.")}</p>`}
+      ${homeErr && data ? `<p class="muted" style="margin:8px 0 0;font-size:12px">${esc(homeErr)}</p>` : ""}
+      <p class="ai-home-f">AI analysis of your workouts · Tap a box to ask about it</p>
+    </div>`;
+    el.onclick = (e) => {
+      if (e.target.closest("[data-ai-home-refresh]")) { loadHome(true); return; }
+      const k = e.target.closest("[data-ai-kpi]");
+      if (k && $("#aiPanel").children.length) { open(true); ask(`Tell me more about "${k.dataset.aiKpi}" from my Coach's take, and what I should do about it.`); }
+    };
+    // A failure isn't retried by itself until the data or the day changes.
+    if ((!c || stale) && !homeBusy && (!homeErr || homeErrFp !== homeFp())) loadHome();
+  }
+
   // Wait for the app (and sign-in) before showing the button.
   const wait = setInterval(() => {
     if (!F() || !F().ready()) return;
@@ -780,5 +898,6 @@
     enabled,
     setEnabled: (on) => { ls.set(K_ON, on ? null : "0"); if (F() && F().ready()) refresh(); },
     open: () => open(true),
+    paintHome: (el) => paintHome(el),
   };
 })();
