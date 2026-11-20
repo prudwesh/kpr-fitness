@@ -10,7 +10,10 @@
                track, secondary, notes (steps, one per line)
      body      a body log: date, weight (kg), fat (%), waist (cm), notes
      settings  id "settings": unit, rest, goal, height, sound, favs
-     profile   id "profile": age (also kept in localStorage for this device)
+     profile   id "profile": age (also kept in localStorage for this device),
+               and the workout planned next: routine (id), date (the day it's
+               for, or ""), start (when it was planned). Fields the Firestore
+               rules already allow for every fitness doc.
      active    id "active": the workout in progress, so it carries on on
                another device. Also kept in localStorage for this device.
    Weights are stored in kg, distances in km, times in seconds; the
@@ -793,6 +796,14 @@
   // The next workout in the plan the person is following: the routine after
   // the last one they did from a program, round and round.
   function upNext() {
+    // Planned (by the AI coach): until it's been done since it was planned,
+    // or its day has passed.
+    const P = docs.get("profile") || {};
+    if (P.routine) {
+      const r = findRoutine(P.routine);
+      const done = derived.workouts.some((w) => w.routine === P.routine && w.start >= (P.start || 0));
+      if (r && !done && (!P.date || P.date >= ymd(Date.now()))) return { r, planned: true, date: P.date || "", goal: D.GOALS.find((g) => g.routines.includes(r.id)) };
+    }
     const w = derived.workouts.find((x) => x.routine);
     if (!w) return null;
     const g = D.GOALS.find((x) => x.routines.includes(w.routine));
@@ -805,7 +816,8 @@
       <span class="goal-t"><b>${esc(g.name)}</b><small>${esc(g.tagline)}</small></span>
       <span class="goal-n">${g.routines.length} workout${g.routines.length === 1 ? "" : "s"} ${I("right", 14)}</span>
     </a>`).join("")}</div>`;
-  const upNextCard = (n) => (n && n.r ? `<div class="upnext"><div class="grow"><small>Up next${n.goal ? " · " + esc(n.goal.name) : ""}</small><b>${esc(n.r.name)}</b></div><button class="btn primary" data-start-r="${esc(n.r.id)}" type="button">${I("play", 14)} Start</button></div>` : "");
+  const dayWord = (k) => (k === ymd(Date.now()) ? "today" : k === ymd(Date.now() + DAY) ? "tomorrow" : fmtDate(fromYmd(k).getTime()));
+  const upNextCard = (n) => (n && n.r ? `<div class="upnext"><div class="grow"><small>Up next${n.planned ? " · planned by your coach" + (n.date ? " for " + dayWord(n.date) : "") : n.goal ? " · " + esc(n.goal.name) : ""}</small><b>${esc(n.r.name)}</b></div><button class="btn primary" data-start-r="${esc(n.r.id)}" type="button">${I("play", 14)} Start</button></div>` : "");
   function viewToday(v) {
     const ws = weekStats(), name = ((me && me.displayName) || "").split(" ")[0];
     const h = new Date().getHours();
@@ -840,7 +852,7 @@
               : `<a class="btn primary lg" href="#/routines">${I("play")} Pick a workout</a>`}
             ${active ? "" : `<a class="btn lg" href="#/workout">Other workout</a>`}
           </div>
-          ${next && next.r ? `<p style="margin:10px 0 0;font-size:13px">Up next${next.goal ? " in <b>" + esc(next.goal.name) + "</b>" : ""}, after your last workout.</p>` : ""}
+          ${next && next.r ? `<p style="margin:10px 0 0;font-size:13px">${next.planned ? `Planned by your AI coach${next.date ? " for <b>" + dayWord(next.date) + "</b>" : ""}.` : `Up next${next.goal ? " in <b>" + esc(next.goal.name) + "</b>" : ""}, after your last workout.`}</p>` : ""}
         </div>
         ${ring(ws.count, ws.goal)}
       </div>
@@ -1803,7 +1815,7 @@
     });
     download(`kpr-fitness-workouts-${ymd(Date.now())}.csv`, rows.join("\n"), "text/csv");
   }
-  const KEYS = { workout: ["name", "date", "start", "end", "notes", "items", "routine"], routine: ["name", "notes", "items"], exercise: ["name", "muscle", "equipment", "category", "track", "secondary", "notes"], body: ["date", "weight", "fat", "waist", "notes"], settings: Object.keys(DEFAULT_SETTINGS), profile: ["age"] };
+  const KEYS = { workout: ["name", "date", "start", "end", "notes", "items", "routine"], routine: ["name", "notes", "items"], exercise: ["name", "muscle", "equipment", "category", "track", "secondary", "notes"], body: ["date", "weight", "fat", "waist", "notes"], settings: Object.keys(DEFAULT_SETTINGS), profile: ["age", "routine", "date", "start"] };
   async function importJson(file) {
     let data;
     try { data = JSON.parse(await file.text()); } catch { toast("That file isn't valid JSON."); return; }
@@ -2072,6 +2084,23 @@
       rebuild(); render();
       return done(snap, `Updated your ${said.join(", ")}`);
     },
+    // Set the workout shown as Up next on Today (and Workout / Programs).
+    planNext(input) {
+      const snap = coachSnap(["profile"]);
+      if (!input.routine) {
+        if (!(docs.get("profile") || {}).routine) return { error: "Nothing is planned." };
+        saveDoc("profile", { kind: "profile", routine: "", date: "", start: 0 }, "save the plan");
+        render();
+        return done(snap, "Cleared the planned workout");
+      }
+      const r = findRoutine(input.routine);
+      if (!r) return { error: "No routine with that id. Get ids from get_routines, or save one with save_routine first." };
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(input.date || "") ? input.date : "";
+      if (date && date < ymd(Date.now())) return { error: "That date has passed." };
+      saveDoc("profile", Object.assign({ kind: "profile", routine: r.id, date, start: Date.now() }, docs.has("profile") ? {} : { age: profile().age || 0 }), "save the plan");
+      render();
+      return done(snap, `Planned “${r.name}”${date ? " for " + dayWord(date) : " as your next workout"}`);
+    },
     createExercise(input) {
       const name = String(input.name || "").trim().slice(0, 120);
       if (!name) return { error: "Give the exercise a name." };
@@ -2116,14 +2145,14 @@
     openExercise: (id) => exerciseDetail(id),
     openRoutineDraft: (r) => routineEditor(r),
     startRoutine: (r) => startRoutine(r),
-    profile, latestWeight, coach,
+    profile, latestWeight, coach, upNext: () => upNext(),
     go,
     I, esc, toast,
   };
 
   render();
   KPR.init({
-    appVersion: "1.9.1",
+    appVersion: "1.10.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
