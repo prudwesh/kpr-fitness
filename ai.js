@@ -553,8 +553,13 @@
     paintMic();
   }
   const speakOn = () => ls.get(K_SPEAK) === "1";
+  // KPR AI's own voice (kpr-ai.js): the same on every device and in every
+  // KPR app. The browser's voice is only for when kpr-ai.js didn't load.
+  const V = () => window.KPRAI && window.KPRAI.voice;
   function speak(text) {
-    if (!speakOn() || !window.speechSynthesis) return;
+    if (!speakOn()) return;
+    if (V()) { V().speak(text).catch(() => {}); return; }
+    if (!window.speechSynthesis) return;
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(String(text).replace(/\*\*/g, "").replace(/^[-•] /gm, ""));
@@ -562,7 +567,10 @@
       speechSynthesis.speak(u);
     } catch {}
   }
-  function stopSpeaking() { try { window.speechSynthesis && speechSynthesis.cancel(); } catch {} }
+  function stopSpeaking() {
+    try { V() && V().stop(); } catch {}
+    try { window.speechSynthesis && speechSynthesis.cancel(); } catch {}
+  }
 
   // ---------------------------------------------------------------- UI
   function md(text) {
@@ -617,7 +625,7 @@
     b.innerHTML = F().I(speakOn() ? "volume" : "mute", 18);
     b.title = speakOn() ? "Reading replies aloud (tap to stop)" : "Read replies aloud";
     b.setAttribute("aria-pressed", String(speakOn()));
-    b.hidden = !window.speechSynthesis;
+    b.hidden = !window.speechSynthesis && !V();
   }
   function send() {
     const box = $("#aiInput");
@@ -644,6 +652,7 @@
     $("#aiBtn").setAttribute("aria-expanded", String(on));
     if (!on) { stopSpeaking(); if (listening) { try { rec.stop(); } catch {} } return; }
     if (!$("#aiLog").children.length) reset();
+    if (speakOn() && V()) V().prepare();   // get the voice ready before the first reply
     if (matchMedia("(pointer:fine)").matches) setTimeout(() => $("#aiInput").focus(), 30);
   }
   function build() {
@@ -672,7 +681,7 @@
       <p class="ai-foot">Goes through KPR AI to Claude. Not medical advice.</p>`;
     $("#aiClose").onclick = () => open(false);
     $("#aiNew").onclick = reset;
-    $("#aiSpeak").onclick = () => { ls.set(K_SPEAK, speakOn() ? null : "1"); if (!speakOn()) stopSpeaking(); paintSpeak(); };
+    $("#aiSpeak").onclick = () => { ls.set(K_SPEAK, speakOn() ? null : "1"); if (!speakOn()) stopSpeaking(); else if (V()) V().prepare(); paintSpeak(); };
     $("#aiMic").onclick = listen;
     $("#aiForm").onsubmit = (e) => { e.preventDefault(); send(); };
     const box = $("#aiInput");
