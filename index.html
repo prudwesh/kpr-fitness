@@ -414,6 +414,11 @@
   .ai-routine ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
   .ai-routine li { display: flex; justify-content: space-between; gap: 8px; }
   .ai-routine li span { color: var(--muted); white-space: nowrap; }
+  .ai-done { padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--card); display: grid; gap: 6px; font-size: 13px; }
+  .ai-done-r { display: flex; align-items: center; gap: 8px; }
+  .ai-done-r .grow { flex: 1; min-width: 0; }
+  .ai-done-ic { color: var(--accent); display: grid; place-items: center; flex-shrink: 0; }
+  .ai-done-r .btn[disabled] { opacity: .55; cursor: default; }
   .ai-thinking { padding: 0 16px 8px; color: var(--muted); font-size: 12.5px; display: flex; align-items: center; gap: 4px; }
   .ai-thinking[hidden] { display: none; }
   .ai-thinking span { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: aiDot 1s infinite ease-in-out; }
@@ -509,8 +514,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://core.kprapps.online/firebase-config.js"></script>
 <script src="https://core.kprapps.online/kpr-core.js?v=36"></script>
-<script src="exercises.js?v=1.6.0"></script>
-<script src="app.js?v=1.6.0"></script>
-<script src="ai.js?v=1.6.0"></script>
+<script src="exercises.js?v=1.7.0"></script>
+<script src="app.js?v=1.7.0"></script>
+<script src="ai.js?v=1.7.0"></script>
 </body>
 </html>

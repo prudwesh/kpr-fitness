@@ -14,11 +14,14 @@ same as every other KPR app.
   Routines, History, Progress, Body, plus Settings.
 - `ai.js`: the **AI Coach** (header button). A chat with voice, like KPR
   Finance's assistant: it answers about the person's own training (it looks
-  up workouts, records, exercise history, body log and routines on the
-  device, read-only), exercise technique, plans and recovery, and how to use
-  the app, and declines anything that isn't fitness. It can show exercises
-  (with their demo) and draft a routine that opens in the routine editor
-  for the person to save. It calls KPR AI (`prudwesh/kpr-ai`, app id
+  up workouts, records, exercise history, body log, routines and the
+  person's age / height / weight), exercise technique, plans and recovery,
+  and how to use the app, and declines anything that isn't fitness. It can
+  also act: "what should I do?" adds a fitting session to today's workout,
+  and it logs sets, finishes workouts, starts and saves routines, logs past
+  workouts and body entries, and updates the profile. The actions are
+  `KPRFit.coach` in `app.js`; each shows in the chat with an Undo button,
+  and deleting or discarding asks first. It calls KPR AI (`prudwesh/kpr-ai`, app id
   `fitness`), which must list `fitness` in its `CLIENTS` with the same
   fitness-only ground rules. Turn it off per device in Settings.
 - `demos/<exercise-id>/0.jpg, 1.jpg`: every exercise's demo, the start and

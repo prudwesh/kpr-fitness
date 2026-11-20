@@ -12,10 +12,14 @@
    The same rules are also set on the server (CLIENTS.fitness in kpr-ai), so
    a changed page can't remove them.
 
-   It only reads. The tools below look things up on this device; nothing is
-   saved or changed by the AI. It can show exercises (with their demo) and
-   draft a routine, which opens in the routine editor for the person to
-   check and save themselves.
+   It reads with the lookup tools, and it can act with the action tools:
+   add exercises to today's workout (starting one), log sets, finish the
+   workout, start a routine or program workout, save or change the person's
+   routines, log a past workout or a body entry, set age / height / weight /
+   weekly goal, and add an exercise of their own. Each action is done by
+   KPRFit.coach in app.js, straight away, and the chat shows what changed
+   with an Undo button. Deleting a routine or discarding a workout asks the
+   person first. It can also show exercises (with their demo).
 
    What's sent: the conversation and whatever the tools look up, as text.
    Nothing until the person asks something. Turn the coach off in Settings. */
@@ -26,7 +30,7 @@
   const K_SPEAK = "kprfitness.ai.speak";   // "1" = read replies aloud
   const K_SEEN = "kprfitness.ai.seen";     // the "where your words go" note was shown
   const DAY = 86400000;
-  const MAX_HOPS = 6;
+  const MAX_HOPS = 10;
   const F = () => window.KPRFit;
   const $ = (s, r = document) => r.querySelector(s);
   const ls = {
@@ -37,18 +41,33 @@
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   const EXAMPLES = [
+    "What should I do today?",
     "How did my training go this week?",
-    "What's my best bench press?",
+    "I did 3 sets of 10 squats at 60",
     "Show me how to do a Romanian deadlift",
-    "Build me a 45-minute push day",
+    "Make me a 3-day muscle-building routine",
     "Which muscles haven't I trained lately?",
     "How do I warm up for squats?",
   ];
   const GREETING = "Hi! I'm your AI coach. Ask me about your training, any exercise, or what to do next.";
-  const NOTE = "Your messages, and the workout data I look up to answer them, go through KPR AI to Claude (Anthropic). I only read: nothing is saved or changed unless you do it.";
+  const NOTE = "Your messages, and the workout data I look up to answer them, go through KPR AI to Claude (Anthropic). When you ask, I can change your workouts, routines and body log; each change shows here with an Undo button.";
 
   // ---------------------------------------------------------------- tools
-  // All read-only. Units follow the person's setting.
+  // Lookups first, then actions. Units follow the person's setting.
+  const SET_SCHEMA = { type: "object", properties: {
+    weight: { type: "number", description: "In the person's weight unit. For bodyweight exercises, only added weight." },
+    reps: { type: "integer" }, seconds: { type: "integer", description: "For timed or cardio exercises." },
+    distance: { type: "number", description: "In the person's distance unit, for distance exercises." },
+    type: { type: "string", enum: ["normal", "warmup", "drop", "failure"] } } };
+  const ITEMS_SCHEMA = { type: "array", items: { type: "object", properties: {
+    ex: { type: "string", description: "Exact exercise id from find_exercises." },
+    sets: { type: "integer", description: "1-20" }, reps: { type: "integer", description: "Target reps, or seconds for timed exercises." },
+    rest: { type: "integer", description: "Rest seconds, 0-900. Omit for their default." } }, required: ["ex"] } };
+  const ACTIONS = {
+    add_to_workout: "addToWorkout", remove_from_workout: "removeFromWorkout", log_sets: "logSets", finish_workout: "finishWorkout",
+    discard_workout: "discardWorkout", start_routine: "startRoutine", save_routine: "saveRoutine", delete_routine: "deleteRoutine",
+    log_past_workout: "logPastWorkout", log_body: "logBody", update_profile: "updateProfile", create_exercise: "createExercise",
+  };
   const TOOLS = [
     { name: "get_overview",
       description: "The person's training at a glance: today's date, their units, weekly goal and this week's count, week streak, totals for all time and the last 30 days (workouts, minutes, volume, sets), their last workout, a workout in progress if any, and their height. Call this first for general questions about how they're doing.",
@@ -85,6 +104,63 @@
         category: { type: "string", description: "One of: strength, calisthenics, cardio, hiit, plyometrics, olympic, stretching, yoga, mobility, core." },
         details: { type: "boolean", description: "Include steps and tip (for at most 8 results)." },
         limit: { type: "integer", description: "1-25. Default 10." } } } },
+    { name: "get_workout_in_progress",
+      description: "Today's workout in progress, if any: name, when it started, and each exercise with its sets (target, numbers, done or not). Check it before logging sets or adding exercises.",
+      input_schema: { type: "object", properties: {} } },
+    // ---- actions: each changes their data now; the chat shows it with Undo.
+    { name: "add_to_workout",
+      description: "Add exercises to today's workout. If no workout is going, starts one (with a short warm-up first unless warmup is false) and opens it. Use this when they ask what to do today or to add an exercise. Optional weight pre-fills each set.",
+      input_schema: { type: "object", properties: {
+        items: { type: "array", items: { type: "object", properties: {
+          ex: { type: "string", description: "Exact exercise id from find_exercises." }, sets: { type: "integer", description: "1-20, default 3" },
+          reps: { type: "integer", description: "Target reps, or seconds for timed exercises." }, weight: { type: "number", description: "Suggested weight in their unit." },
+          rest: { type: "integer", description: "Rest seconds. Omit for their default." } }, required: ["ex"] } },
+        name: { type: "string", description: "Workout name if a new one is started, e.g. 'Upper body'." },
+        warmup: { type: "boolean", description: "False to skip the warm-up when starting." } }, required: ["items"] } },
+    { name: "remove_from_workout",
+      description: "Take an exercise out of today's workout in progress.",
+      input_schema: { type: "object", properties: { ex: { type: "string", description: "Exercise id." } }, required: ["ex"] } },
+    { name: "log_sets",
+      description: "Log sets they did today: fills and ticks sets of that exercise in the workout in progress (adding the exercise, or starting a workout, if needed).",
+      input_schema: { type: "object", properties: { ex: { type: "string", description: "Exercise id." }, sets: { type: "array", items: SET_SCHEMA } }, required: ["ex", "sets"] } },
+    { name: "finish_workout",
+      description: "Save the workout in progress to their history (ticked sets and sets with numbers). Only when they say they're done with it.",
+      input_schema: { type: "object", properties: { name: { type: "string", description: "Optional new name." } } } },
+    { name: "discard_workout",
+      description: "Throw away the workout in progress without saving. The app asks them to confirm. Only when they ask.",
+      input_schema: { type: "object", properties: {} } },
+    { name: "start_routine",
+      description: "Start a workout from one of their routines or a program workout (id from get_routines). Only when no workout is going.",
+      input_schema: { type: "object", properties: { routine: { type: "string", description: "Routine id." } }, required: ["routine"] } },
+    { name: "save_routine",
+      description: "Save a new routine to their routines, or change one of their own (give its id; fields left out stay). Use it to build plans and programs they asked for, or to copy and adjust a program workout.",
+      input_schema: { type: "object", properties: {
+        id: { type: "string", description: "Their routine's id to change it; omit to make a new one." },
+        name: { type: "string" }, notes: { type: "string" }, items: ITEMS_SCHEMA } } },
+    { name: "delete_routine",
+      description: "Delete one of their own routines. The app asks them to confirm. Only when they ask.",
+      input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+    { name: "log_past_workout",
+      description: "Save a workout they did on an earlier day (or earlier today, finished) straight into history.",
+      input_schema: { type: "object", properties: {
+        date: { type: "string", description: "YYYY-MM-DD" }, time: { type: "string", description: "HH:MM start, default 18:00" },
+        minutes: { type: "integer" }, name: { type: "string" }, notes: { type: "string" },
+        items: { type: "array", items: { type: "object", properties: { ex: { type: "string" }, sets: { type: "array", items: SET_SCHEMA } }, required: ["ex", "sets"] } } }, required: ["items"] } },
+    { name: "log_body",
+      description: "Log weight, body fat or waist in the body log (one entry per day; the same date updates it).",
+      input_schema: { type: "object", properties: {
+        date: { type: "string", description: "YYYY-MM-DD, default today." }, weight: { type: "number", description: "In their weight unit." },
+        bodyFat: { type: "number", description: "Percent." }, waist: { type: "number", description: "cm, or in with lb units." }, note: { type: "string" } } } },
+    { name: "update_profile",
+      description: "Change their age, height (cm, or in with lb units), weight (today's body entry, their unit), weekly workout goal or default rest seconds.",
+      input_schema: { type: "object", properties: {
+        age: { type: "integer" }, height: { type: "number" }, weight: { type: "number" }, weeklyGoal: { type: "integer" }, defaultRest: { type: "integer" } } } },
+    { name: "create_exercise",
+      description: "Add an exercise of their own to the library, only when nothing in find_exercises fits.",
+      input_schema: { type: "object", properties: {
+        name: { type: "string" }, muscle: { type: "string", description: "Main muscle key, as in find_exercises." }, equipment: { type: "string" }, category: { type: "string" },
+        track: { type: "string", enum: ["wr", "r", "t", "dt"], description: "wr weight × reps, r reps, t time, dt distance + time." },
+        alsoWorks: { type: "array", items: { type: "string" } }, steps: { type: "array", items: { type: "string" } } }, required: ["name"] } },
     { name: "end_conversation",
       description: "Call when the person says they're done (bye, that's all, thanks that's it).",
       input_schema: { type: "object", properties: {} } },
@@ -125,9 +201,39 @@
     for (const [k, label] of f.METRICS[ex.track]) out[label] = f.metricText(ex.track, k, f.bestMetric(list, ex.track, k));
     return out;
   }
-  function runTool(name, input) {
+  function profileOut() {
+    const f = F(), S = f.settings(), P = f.profile(), w = f.latestWeight();
+    return {
+      age: P.age || null,
+      height: S.height > 0 ? (f.isLb() ? Math.round(S.height / 2.54) + " in" : Math.round(S.height) + " cm") : null,
+      weight: w ? wtxt(w) : null,
+      bmi: w && S.height > 0 ? Math.round((w / Math.pow(S.height / 100, 2)) * 10) / 10 : null,
+      missing: [!P.age && "age", !(S.height > 0) && "height", !w && "weight"].filter(Boolean),
+    };
+  }
+  // Exercise ids the model gives may be names; resolve them before acting.
+  function resolveIds(input) {
+    const fix = (v) => { const e = findEx(v); return e ? e.id : v; };
+    const out = Object.assign({}, input);
+    if (out.ex) out.ex = fix(out.ex);
+    if (Array.isArray(out.items)) out.items = out.items.map((x) => (x && x.ex ? Object.assign({}, x, { ex: fix(x.ex) }) : x));
+    return out;
+  }
+  // Actions done this turn: shown as cards with Undo once the reply is in.
+  let changes = [];
+  async function runTool(name, input) {
     const f = F();
     if (!f || !f.ready()) return { error: "The person's data isn't loaded yet." };
+    if (ACTIONS[name]) {
+      try {
+        const r = await f.coach[ACTIONS[name]](resolveIds(input || {}));
+        if (r && r.ok) { changes.push({ text: r.done, undo: r.undo }); return Object.assign({ ok: true, done: r.done }, r.id ? { id: r.id } : {}); }
+        return r && r.error ? { error: r.error } : { error: "That didn't work." };
+      } catch (e) {
+        console.warn("[ai] action", name, e);
+        return { error: "That change failed." };
+      }
+    }
     const d = f.derived(), S = f.settings();
     try {
       switch (name) {
@@ -144,7 +250,7 @@
             lastWorkout: d.workouts[0] ? workoutOut(d.workouts[0]) : null,
             workoutInProgress: a ? { name: a.name, exercises: a.items.map((it) => f.exById(it.ex, it.name).name), setsDone: a.items.reduce((n, it) => n + it.sets.filter((s) => s.done).length, 0) } : null,
             savedRoutines: d.routines.length,
-            heightCm: S.height || null,
+            profile: profileOut(),
           };
         }
         case "get_workouts": {
@@ -214,6 +320,18 @@
             hasDemo: !!e.demo, timesDone: (d.hist.get(e.id) || []).length, own: !e.builtin || undefined,
           }, input.details && i < 8 ? { steps: e.steps, tip: e.tip || undefined } : {})) };
         }
+        case "get_workout_in_progress": {
+          const a = f.active();
+          if (!a) return { inProgress: false };
+          return {
+            inProgress: true, name: a.name, started: new Date(a.start).toLocaleString(), editingPastWorkout: !!a.editingId,
+            exercises: a.items.map((it) => {
+              const ex = f.exById(it.ex, it.name);
+              return { id: ex.id, name: ex.name, warmUp: it.warm || undefined, rest: it.rest || 0,
+                sets: it.sets.map((s) => ({ done: !!s.done, logged: f.setText(ex.track, s) || null, target: s.tr ? (ex.track === "t" ? s.tr + "s" : s.tr + " reps") : undefined })) };
+            }),
+          };
+        }
         case "end_conversation": ended = true; return { ok: true };
       }
     } catch (e) {
@@ -242,14 +360,22 @@
       "- Work out dates from today's date ('this week' starts Monday).",
       "- When an exercise would help them (how to do it, or one you're recommending), show it with a line [[show: id1, id2]] using exact ids from find_exercises (at most 4). The app turns it into cards that open the exercise with its demo.",
       "- When a goal program fits what they want (lose fat, belly fat, six-pack, build muscle, get stronger, stay fit, tone up, beginner, home, stamina, flexibility, glutes), recommend it and add a line [[program: goal-id]] with the goalId from get_routines; the app shows a card that opens that program. Be honest: fat can't be lost from one spot.",
-      "- When they ask you to build a routine or workout, draft it with a line [[routine: {\"name\": \"…\", \"notes\": \"…\", \"items\": [{\"ex\": \"exact-id\", \"sets\": 3, \"reps\": 10, \"rest\": 90}]}]] (reps = seconds for timed exercises; at most 12 exercises; ids from find_exercises). The app shows a card that opens it in the routine editor, where they check and save it. Prefer equipment they've used before. Also describe the plan briefly in words.",
-      "- You can't save, change or delete anything yourself; the person does that in the app.",
+      "",
+      "You can change their training with the action tools, and should when they ask:",
+      "- \"What should I do (today)?\" / \"Give me a workout\": look at get_overview (their profile: age, height, weight, BMI; last workout; any workout in progress), get_muscles_trained and their program (get_routines; the Up next workout if they follow one). Pick a session that fits their age, body, goal and history: muscles they haven't trained lately, equipment they've used, about 4-7 exercises with sets, reps and rest (and a starting weight from their history when there is one). Then add it with add_to_workout (it starts today's workout) and say in a few lines what it is and why. If their next program workout fits, start_routine with it instead.",
+      "- Age and level matter: for beginners, people over 50, or a high BMI, go gentler (lighter loads, more rest, lower-impact moves). Teens: bodyweight and light weights, good form.",
+      "- If age, height or weight is missing (profile.missing), still help, and once mention they can tell you or add it in Settings. When they tell you, save it with update_profile.",
+      "- \"I did …\" today: log_sets (it ticks the sets in today's workout). Done training: finish_workout when they say so. An earlier day: log_past_workout. Weight or measurements: log_body.",
+      "- Plans and programs: build routines with save_routine (ids from find_exercises; reps = seconds for timed exercises; at most 12 exercises each), e.g. one per training day of a plan; change their own routines by id. Start one with start_routine.",
+      "- Only change what they asked for, and never log sets they didn't say they did. If it's unclear what to change, ask first. delete_routine and discard_workout ask them to confirm; use them only when asked.",
+      "- After acting, say in a sentence what you did. The app lists each change with an Undo button.",
+      "- If an action returns an error, tell them simply, or fix the input and try again.",
       "- The [[...]] lines are read by the app and hidden; never mention them.",
       "- When they're done (bye, that's all, thanks), call end_conversation and say a short goodbye.",
       "",
       `Today: ${f.ymd(Date.now())}. Units: ${f.wU()} and ${f.dU()}. Weekly goal: ${S.goal} workouts.`,
       "",
-      "App guide: tabs are Today, Workout, Programs, Exercises, Progress. Today (first visit: pick a goal; then the Up next workout of their program, streak, muscles trained, last workout, records). Workout (start empty, from a routine, or repeat one; starting a routine puts a 5-minute warm-up of moving stretches for its muscles first, which Skip warm-up removes, or Add warm-up stretches adds to any workout; log sets; the Previous column shows last time; tap the set number for warm-up / drop / failure; tick a set to start the rest timer; Finish saves it, and can save it as a routine). Exercises (library with search and filters, each with steps, a muscle map and a demo; star favourites; New exercise for your own). Programs tab (Up next, your own routines, and programs picked by goal: lose fat, six-pack, build muscle, get stronger, stay fit, tone up, just starting, train at home, build stamina, flexibility, glutes & legs; each with a suggested week, tips and workouts to Start or Copy). Progress tab, switched at its top between Stats, History and Body. History (calendar, each workout: edit, repeat, save as routine, delete; Export CSV). Progress (charts, exercise progress, muscles worked, records, 1-rep-max and plate calculators). Body (weight, body fat, waist, BMI). Settings (units kg/lb, default rest, weekly goal, height, sound, download / import your data, AI Coach on or off).",
+      "App guide: tabs are Today, Workout, Programs, Exercises, Progress. Today (first visit: pick a goal; then the Up next workout of their program, streak, muscles trained, last workout, records). Workout (start empty, from a routine, or repeat one; starting a routine puts a 5-minute warm-up of moving stretches for its muscles first, which Skip warm-up removes, or Add warm-up stretches adds to any workout; log sets; the Previous column shows last time; tap the set number for warm-up / drop / failure; tick a set to start the rest timer; Finish saves it, and can save it as a routine). Exercises (library with search and filters, each with steps, a muscle map and a demo; star favourites; New exercise for your own). Programs tab (Up next, your own routines, and programs picked by goal: lose fat, six-pack, build muscle, get stronger, stay fit, tone up, just starting, train at home, build stamina, flexibility, glutes & legs; each with a suggested week, tips and workouts to Start or Copy). Progress tab, switched at its top between Stats, History and Body. History (calendar, each workout: edit, repeat, save as routine, delete; Export CSV). Progress (charts, exercise progress, muscles worked, records, 1-rep-max and plate calculators). Body (weight, body fat, waist, BMI). Settings (about you: age, height, weight; units kg/lb, default rest, weekly goal, sound, warm-up on or off, download / import your data, AI Coach on or off). Today also lists the workout in progress.",
     ].join("\n");
   }
 
@@ -335,7 +461,7 @@
     const mark = convo.length;
     convo.push({ role: "user", content: [{ type: "text", text }] });
     trim();
-    busy = true; ended = false; paintBusy();
+    busy = true; ended = false; changes = []; paintBusy();
     let said = "", refused = false;
     try {
       for (let hop = 0; hop < MAX_HOPS; hop++) {
@@ -346,13 +472,17 @@
         if (t) { said = t; refused = false; } else if (r.refused) refused = true;
         const calls = r.message.content.filter((b) => b.type === "tool_use");
         if (!calls.length) break;
-        convo.push({ role: "user", content: calls.map((b) => ({ type: "tool_result", tool_use_id: b.id, content: JSON.stringify(runTool(b.name, b.input || {})) })) });
+        const results = [];
+        for (const b of calls) results.push({ type: "tool_result", tool_use_id: b.id, content: JSON.stringify(await runTool(b.name, b.input || {})) });
+        if (my !== gen) return;
+        convo.push({ role: "user", content: results });
         if (hop === MAX_HOPS - 1) said = said || "Sorry, that took too many steps. Try asking in a simpler way.";
       }
     } catch (e) {
       if (my !== gen) return;
       convo.length = Math.min(convo.length, mark);
       busy = false; paintBusy();
+      showChanges();
       const reason = (e && e.reason) || "error";
       bubble("note", (DOWN[reason] || DOWN.error) + (e && e.detail ? ` (${String(e.detail).slice(0, 140)})` : ""));
       return;
@@ -362,6 +492,7 @@
     const reply = d.text || (refused ? "Sorry, I can't help with that one." : ended ? "Bye! Have a great workout." : "Done.");
     bubble("ai", reply);
     speak(reply);
+    showChanges();
     const f = F();
     const shown = Array.from(new Set(d.show)).map((id) => findEx(id)).filter(Boolean).slice(0, 4);
     if (shown.length) card(shown.map((ex) => `<button class="ai-ex" type="button" data-ai-ex="${esc(ex.id)}">
@@ -373,6 +504,31 @@
     const r = cleanRoutine(d.routine);
     if (r) card(`<div class="ai-routine"><b>${esc(r.name)}</b><ul>${r.items.map((x) => { const ex = f.exById(x.ex); return `<li>${esc(ex.name)} <span>${x.sets} × ${ex.track === "t" ? x.reps + "s" : ex.track === "dt" ? "–" : x.reps}</span></li>`; }).join("")}</ul>
         <button class="btn primary sm" type="button" data-ai-routine>Review and save</button></div>`, { routine: r });
+  }
+
+  // What the coach changed this turn, each with Undo.
+  function showChanges() {
+    const list = changes; changes = [];
+    if (!list.length) return;
+    const el = document.createElement("div");
+    el.className = "ai-card";
+    el.innerHTML = `<div class="ai-done">${list.map((c, i) => `<div class="ai-done-r"><span class="ai-done-ic">${F().I("check", 14)}</span><span class="grow">${esc(c.text)}</span><button class="btn sm" type="button" data-undo="${i}">Undo</button></div>`).join("")}</div>`;
+    el.onclick = (e) => {
+      const b = e.target.closest("[data-undo]"); if (!b || b.disabled) return;
+      // Undo newer changes first, so an earlier undo doesn't bring back a later one.
+      const i = +b.dataset.undo;
+      for (let j = list.length - 1; j >= i; j--) {
+        const btn = el.querySelector(`[data-undo="${j}"]`);
+        if (btn.disabled) continue;
+        try { list[j].undo(); } catch (err) { console.warn("[ai] undo", err); }
+        btn.disabled = true; btn.textContent = "Undone";
+      }
+      F().toast("Undone");
+      if (!busy) convo.push({ role: "user", content: [{ type: "text", text: "(I pressed Undo on: " + list.slice(i).map((c) => c.text).join("; ") + ".)" }] });
+      if (!busy) convo.push({ role: "assistant", content: [{ type: "text", text: "Okay, that's undone." }] });
+    };
+    $("#aiLog").appendChild(el);
+    scrollDown();
   }
 
   // ---------------------------------------------------------------- voice

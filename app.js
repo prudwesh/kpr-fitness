@@ -10,6 +10,7 @@
                track, secondary, notes (steps, one per line)
      body      a body log: date, weight (kg), fat (%), waist (cm), notes
      settings  id "settings": unit, rest, goal, height, sound, favs
+     profile   id "profile": age (also kept in localStorage for this device)
      active    id "active": the workout in progress, so it carries on on
                another device. Also kept in localStorage for this device.
    Weights are stored in kg, distances in km, times in seconds; the
@@ -841,6 +842,7 @@
         </div>
         ${ring(ws.count, ws.goal)}
       </div>
+      ${active ? todayWorkoutCard() : ""}
       <div class="card" style="margin-top:16px">
         <div class="week">${ws.days.map((d) => `<div class="day ${d.n ? "done" : ""} ${ymd(d.t) === todayKey ? "today" : ""}">${new Date(d.t).toLocaleDateString(undefined, { weekday: "narrow" })}<i>${d.n ? I("check", 16) : ""}</i></div>`).join("")}</div>
       </div>
@@ -864,6 +866,13 @@
       <div class="sec-t">Quick start</div>
       <div class="grid rgrid">${routines.map((r) => routineCard(r, true)).join("")}</div>`;
     bindCommon(v);
+  }
+  // The workout in progress on Today (the AI coach can add to it too).
+  function todayWorkoutCard() {
+    const items = active.items.filter((it) => !it.warm);
+    return `<div class="card" style="margin-top:16px"><div class="card-h"><h3>Today's workout</h3><button class="btn primary sm" data-act="resume" type="button">${I("play", 14)} Resume</button></div>
+      ${items.length ? `<ul class="exlist">${items.map((it) => { const ex = exById(it.ex, it.name); return `<li><button class="rx" type="button" data-ex="${esc(ex.id)}">${demoThumb(ex)}<span>${esc(ex.name)}</span></button><span class="rx-n">${it.sets.filter((s) => s.done).length}/${it.sets.length} sets</span></li>`; }).join("")}</ul>`
+        : `<p class="muted" style="margin:0">No exercises yet. Add some, or ask the AI Coach what to do.</p>`}</div>`;
   }
   function workoutSummary(w, compact) {
     const vol = workoutVolume(w);
@@ -1703,11 +1712,8 @@
       const waist = waistIn == null ? 0 : isLb() ? waistIn * 2.54 : waistIn;
       if (!weight && !fatV && !waist) { toast("Enter your weight or a measurement"); return; }
       if ((weight || 0) > 1000 || (fatV || 0) > 100 || waist > 500) { toast("That number looks too big"); return; }
-      // One entry per day: the same date updates it.
-      const same = derived.body.find((b) => b.date === date);
-      const doc = { kind: "body", date, weight: weight || (same ? same.weight || 0 : 0), fat: fatV ?? (same ? same.fat || 0 : 0), waist: waist || (same ? same.waist || 0 : 0), notes: ($("#bN").value || (same ? same.notes || "" : "")).slice(0, 500) };
-      saveDoc(same ? same.id : null, doc, "save the entry");
-      toast(same ? "Entry updated" : "Entry saved");
+      const r = saveBodyEntry({ date, weight, fat: fatV, waist, notes: $("#bN").value });
+      toast(r.updated ? "Entry updated" : "Entry saved");
     };
     v.onclick = async (e) => {
       const d = e.target.closest("[data-bdel]"); if (!d) return;
@@ -1721,13 +1727,19 @@
   function settingsModal() {
     openModal((m) => {
       const heightShow = S.height > 0 ? (isLb() ? Math.round(S.height / 2.54) : Math.round(S.height)) : "";
+      const P = profile(), lw = latestWeight();
       modalShell(m, {
         title: "Settings",
         sub: "Saved to your account, so they follow you to every device.",
-        body: `<label class="lbl">Units</label><div class="seg" id="sUnit"><button type="button" data-u="kg" class="${!isLb() ? "on" : ""}">kg · km · cm</button><button type="button" data-u="lb" class="${isLb() ? "on" : ""}">lb · mi · in</button></div>
+        body: `<h3 style="margin:0 0 4px;font-size:14px">About you</h3>
+          <p class="muted" style="margin:0;font-size:13px">So the AI Coach can pick workouts that suit you. Weight goes in your body log for today.</p>
+          <div class="fields"><div><label class="lbl" for="sAge">Age</label><input class="input" id="sAge" type="number" min="10" max="120" value="${P.age || ""}" placeholder="Years" /></div>
+            <div><label class="lbl" for="sH">Height (${isLb() ? "in" : "cm"})</label><input class="input" id="sH" type="number" min="0" max="${isLb() ? 118 : 300}" value="${heightShow}" placeholder="For BMI" /></div>
+            <div><label class="lbl" for="sW">Weight (${wU()})</label><input class="input" id="sW" inputmode="decimal" value="${lw ? wShow(lw) : ""}" placeholder="${wU()}" /></div></div>
+          <h3 style="margin:22px 0 6px;font-size:14px">Training</h3>
+          <label class="lbl">Units</label><div class="seg" id="sUnit"><button type="button" data-u="kg" class="${!isLb() ? "on" : ""}">kg · km · cm</button><button type="button" data-u="lb" class="${isLb() ? "on" : ""}">lb · mi · in</button></div>
           <div class="fields"><div><label class="lbl" for="sRest">Default rest (seconds)</label><input class="input" id="sRest" type="number" min="0" max="900" step="15" value="${S.rest}" /></div>
-            <div><label class="lbl" for="sGoal">Workouts a week</label><input class="input" id="sGoal" type="number" min="1" max="14" value="${S.goal}" /></div>
-            <div><label class="lbl" for="sH">Height (${isLb() ? "in" : "cm"})</label><input class="input" id="sH" type="number" min="0" max="${isLb() ? 118 : 300}" value="${heightShow}" placeholder="For BMI" /></div></div>
+            <div><label class="lbl" for="sGoal">Workouts a week</label><input class="input" id="sGoal" type="number" min="1" max="14" value="${S.goal}" /></div></div>
           <label class="row" style="margin-top:14px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="sSound" ${S.sound ? "checked" : ""} /> <span>Beep when rest is over</span></label>
           <label class="row" style="margin-top:10px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="sWarm" ${warmupOn() ? "checked" : ""} /> <span>Start routines with a warm-up of moving stretches (on this device)</span></label>
           <label class="row" style="margin-top:10px;gap:8px;flex-wrap:nowrap"><input type="checkbox" id="sAi" ${!window.KPRFitAI || window.KPRFitAI.enabled() ? "checked" : ""} /> <span>Show the AI Coach (on this device)</span></label>
@@ -1742,8 +1754,15 @@
       let unit = S.unit;
       $("#sUnit", m).onclick = (e) => { const b = e.target.closest("[data-u]"); if (!b) return; unit = b.dataset.u; $$("#sUnit button", m).forEach((x) => x.classList.toggle("on", x === b)); };
       $("#sSave", m).onclick = () => {
+        // Height and weight are typed in the units shown when the box opened.
         const hv = parseNum($("#sH", m).value);
         const height = hv ? Math.round((isLb() ? hv * 2.54 : hv) * 10) / 10 : 0;
+        const age = parseInt($("#sAge", m).value, 10), wv = parseNum($("#sW", m).value);
+        if ($("#sAge", m).value && !(age >= 10 && age <= 120)) { toast("Enter an age from 10 to 120"); return; }
+        if (wv != null && (wv <= 0 || wv > (isLb() ? 2200 : 1000))) { toast("That weight doesn't look right"); return; }
+        const kg = wv ? wIn(wv) : 0;
+        if (kg && (!lw || Math.abs(kg - lw) > 0.05)) saveBodyEntry({ date: ymd(Date.now()), weight: kg });
+        if ((age || 0) !== (P.age || 0)) saveProfile({ age: age || 0 });
         saveSettings({ unit, rest: clamp(parseInt($("#sRest", m).value, 10) || 0, 0, 900), goal: clamp(parseInt($("#sGoal", m).value, 10) || 3, 1, 14), height: clamp(height, 0, 300), sound: $("#sSound", m).checked });
         if (window.KPRFitAI) window.KPRFitAI.setEnabled($("#sAi", m).checked);
         lsSet(WARM_KEY, $("#sWarm", m).checked ? null : "0");
@@ -1779,13 +1798,13 @@
     });
     download(`kpr-fitness-workouts-${ymd(Date.now())}.csv`, rows.join("\n"), "text/csv");
   }
-  const KEYS = { workout: ["name", "date", "start", "end", "notes", "items", "routine"], routine: ["name", "notes", "items"], exercise: ["name", "muscle", "equipment", "category", "track", "secondary", "notes"], body: ["date", "weight", "fat", "waist", "notes"], settings: Object.keys(DEFAULT_SETTINGS) };
+  const KEYS = { workout: ["name", "date", "start", "end", "notes", "items", "routine"], routine: ["name", "notes", "items"], exercise: ["name", "muscle", "equipment", "category", "track", "secondary", "notes"], body: ["date", "weight", "fat", "waist", "notes"], settings: Object.keys(DEFAULT_SETTINGS), profile: ["age"] };
   async function importJson(file) {
     let data;
     try { data = JSON.parse(await file.text()); } catch { toast("That file isn't valid JSON."); return; }
     const list = Array.isArray(data && data.docs) ? data.docs : null;
     if (!list || (data.app && data.app !== "kpr-fitness")) { toast("That isn't a KPR Fitness file."); return; }
-    const good = list.filter((d) => d && KEYS[d.kind] && typeof d.id === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(d.id) && (d.kind === "settings") === (d.id === "settings"));
+    const good = list.filter((d) => d && KEYS[d.kind] && typeof d.id === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(d.id) && (d.kind === "settings") === (d.id === "settings") && (d.kind === "profile") === (d.id === "profile"));
     if (!good.length) { toast("Nothing to import in that file."); return; }
     if (!(await confirmBox("Import?", `${good.length} item${good.length > 1 ? "s" : ""} will be added. Ones you already have (same id) are replaced.`, "Import"))) return;
     try {
@@ -1807,6 +1826,249 @@
   }
 
   // ===================================================================
+  // profile, and what the AI coach can change
+  // ===================================================================
+  // Age lives in its own doc (id "profile", kind "profile"), so the
+  // settings doc keeps its shape, and on this device too, so the coach
+  // knows it even before the account has it. Height stays in settings;
+  // weight is the latest body-log entry.
+  const PROFILE_KEY = () => "kprfitness.profile." + me.uid;
+  function profile() {
+    let local = {};
+    try { local = JSON.parse(lsGet(PROFILE_KEY()) || "{}") || {}; } catch {}
+    const d = docs.get("profile") || {};
+    return { age: d.age > 0 ? d.age : local.age > 0 ? local.age : 0 };
+  }
+  function saveProfile(patch) {
+    const before = profile();
+    const p = Object.assign({}, before, patch);
+    p.age = clamp(Math.round(+p.age || 0), 0, 120);
+    lsSet(PROFILE_KEY(), JSON.stringify(p));
+    if (p.age !== before.age || !docs.has("profile")) saveDoc("profile", { kind: "profile", age: p.age }, "save your age");
+  }
+  const latestWeight = () => { const b = derived.body.find((x) => x.weight > 0); return b ? b.weight : 0; };
+  // One body entry per day: the same date updates it.
+  function saveBodyEntry({ date, weight, fat, waist, notes }) {
+    const same = derived.body.find((b) => b.date === date);
+    const doc = { kind: "body", date, weight: weight || (same ? same.weight || 0 : 0), fat: fat ?? (same ? same.fat || 0 : 0), waist: waist || (same ? same.waist || 0 : 0), notes: String(notes || (same ? same.notes || "" : "")).slice(0, 500) };
+    return { id: saveDoc(same ? same.id : null, doc, "save the entry"), updated: !!same };
+  }
+
+  // Each action does the change straight away and returns
+  // { ok, done: "what changed", undo() }, or { error }. Numbers come in the
+  // person's units. The chat shows what changed with an Undo button.
+  // Deleting or discarding asks the person first.
+  function coachSnap(ids, withActive) {
+    return { act: withActive ? { a: active ? clone(active) : null } : null, prof: lsGet(PROFILE_KEY()),
+      docs: ids.filter(Boolean).map((id) => [id, docs.has(id) ? clone(docs.get(id)) : null]) };
+  }
+  function coachRestore(s) {
+    for (const [id, d] of s.docs) {
+      if (!d) { if (docs.has(id)) removeDoc(id, "undo that"); continue; }
+      const clean = pick(d, KEYS[d.kind] || []);
+      clean.kind = d.kind;
+      saveDoc(id, clean, "undo that");
+      if (d.kind === "profile") lsSet(PROFILE_KEY(), s.prof);
+    }
+    if (s.act) {
+      if (s.act.a) { active = s.act.a; lsSet(ACTIVE_KEY() + ".gone", null); persistActive(true); }
+      else if (active) clearActive();
+      tickFab();
+    }
+    render();
+  }
+  const done = (snap, text, extra) => Object.assign({ ok: true, done: text, undo: () => coachRestore(snap) }, extra || {});
+  const lifts = (tr) => tr === "wr" || tr === "r";
+  const numIn = (v, hi) => { const n = parseNum(v); return n == null ? null : Math.min(hi, n); };
+  function coachSet(tr, x, isDone) {
+    x = x || {};
+    const s = { k: { warmup: "w", drop: "d", failure: "f" }[x.type] || "n", w: null, r: null, d: null, t: null, done: isDone };
+    if (lifts(tr)) { s.w = x.weight != null && x.weight !== "" ? wIn(x.weight) : null; const r = numIn(x.reps, 9999); s.r = r == null ? null : Math.round(r); }
+    if (tr === "t" || tr === "dt") { const t = numIn(x.seconds, 86400); s.t = t == null ? null : Math.round(t); }
+    if (tr === "dt") s.d = x.distance != null && x.distance !== "" ? dIn(x.distance) : null;
+    return s;
+  }
+  const hasNum = (s, tr) => (lifts(tr) ? s.r > 0 : tr === "t" ? s.t > 0 : s.d > 0 || s.t > 0);
+  const knownEx = (id) => { const ex = exById(id); return ex.missing ? null : ex; };
+  const routineItems = (list) => (Array.isArray(list) ? list : []).map((x) => {
+    const ex = x && knownEx(x.ex); if (!ex) return null;
+    const n = (v, lo, hi, d) => { const k = parseInt(v, 10); return isNaN(k) ? d : clamp(k, lo, hi); };
+    return { ex: ex.id, sets: n(x.sets, 1, 20, 3), reps: ex.track === "dt" ? 0 : n(x.reps, 0, 999, ex.track === "t" ? 30 : 10), rest: n(x.rest, 0, 900, lifts(ex.track) ? S.rest : 0) };
+  }).filter(Boolean).slice(0, 60);
+  const names = (ids) => ids.map((id) => exById(id).name).join(", ");
+
+  const coach = {
+    // Add exercises to today's workout, starting one if none is going.
+    addToWorkout(input) {
+      if (active && active.editingId) return { error: "They're editing a past workout; it has to be saved or cancelled first." };
+      const items = (input.items || []).map((x) => {
+        const ex = x && knownEx(x.ex); if (!ex) return null;
+        const sets = clamp(parseInt(x.sets, 10) || 3, 1, 20);
+        const target = ex.track === "dt" ? null : clamp(parseInt(x.reps, 10) || 0, 0, 999) || null;
+        const rest = x.rest != null && !isNaN(parseInt(x.rest, 10)) ? clamp(parseInt(x.rest, 10), 0, 900) : null;
+        const it = makeItem(ex.id, sets, target, rest);
+        if (x.weight != null && lifts(ex.track)) { const w = wIn(x.weight); it.sets.forEach((s) => { s.w = w; }); }
+        return it;
+      }).filter(Boolean).slice(0, 20);
+      if (!items.length) return { error: "None of those exercise ids are in the library. Look them up with find_exercises." };
+      const snap = coachSnap([], true);
+      const ids = items.map((it) => it.ex);
+      if (!active) {
+        const warm = input.warmup !== false && warmupOn() ? warmupFor(ids) : [];
+        startWorkout({ name: String(input.name || "").slice(0, 120) || defaultName(), items: warm.concat(items) });
+        return done(snap, `Started today's workout with ${names(ids)}${warm.length ? " (after a short warm-up)" : ""}`);
+      }
+      active.items.push(...items);
+      persistActive(); render();
+      return done(snap, `Added ${names(ids)} to today's workout`);
+    },
+    removeFromWorkout(input) {
+      if (!active) return { error: "No workout in progress." };
+      const ex = knownEx(input.ex) || { id: input.ex };
+      const keep = active.items.filter((it) => it.warm || it.ex !== ex.id);
+      if (keep.length === active.items.length) return { error: "That exercise isn't in the workout in progress." };
+      const snap = coachSnap([], true);
+      active.items = keep; persistActive(); render();
+      return done(snap, `Removed ${exById(ex.id).name} from today's workout`);
+    },
+    // Log sets the person says they did, ticking them in the workout.
+    logSets(input) {
+      const ex = knownEx(input.ex);
+      if (!ex) return { error: "Unknown exercise id." };
+      if (active && active.editingId) return { error: "They're editing a past workout; it has to be saved or cancelled first." };
+      const given = (Array.isArray(input.sets) ? input.sets : []).slice(0, 30).map((x) => coachSet(ex.track, x, true)).filter((s) => hasNum(s, ex.track));
+      if (!given.length) return { error: ex.track === "wr" ? "Each set needs reps (and weight)." : ex.track === "r" ? "Each set needs reps." : ex.track === "t" ? "Each set needs seconds." : "Each set needs a distance or time." };
+      const snap = coachSnap([], true);
+      if (!active) startWorkout({ name: defaultName(), items: [] });
+      let it = active.items.find((x) => !x.warm && x.ex === ex.id);
+      if (!it) { it = makeItem(ex.id, 1); it.sets = []; active.items.push(it); }
+      for (const s of given) {
+        const slot = it.sets.find((x) => !x.done);
+        if (slot) Object.assign(slot, s); else it.sets.push(Object.assign(newSet(ex), s));
+      }
+      persistActive(); render();
+      return done(snap, `Logged ${plural(given.length, "set")} of ${ex.name}: ${given.map((s) => setText(ex.track, s)).join(", ")}`);
+    },
+    // Save the workout in progress to history.
+    finishWorkout(input) {
+      if (!active) return { error: "No workout in progress." };
+      const a = active;
+      const items = a.items.filter((it) => !it.warm).map((it) => {
+        const ex = exById(it.ex, it.name);
+        const sets = it.sets.filter((s) => s.done || hasNum(s, ex.track)).map((s) => ({ k: s.k || "n", w: s.w ?? null, r: s.r ?? null, d: s.d ?? null, t: s.t ?? null }));
+        return { ex: it.ex, name: ex.name, note: it.note || "", rest: it.rest || 0, sets };
+      }).filter((it) => it.sets.length).slice(0, 60);
+      if (!items.length) return { error: "Nothing is logged in the workout yet: no set has numbers." };
+      const end = a.editingId ? a.end || Date.now() : a.past ? a.start + 3600000 : Date.now();
+      const snap = coachSnap([a.editingId], true);
+      const name = String(input.name || a.name || "Workout").trim().slice(0, 120);
+      const id = saveDoc(a.editingId || null, { kind: "workout", name, date: ymd(a.start), start: a.start, end: Math.max(end, a.start + 60000), notes: a.notes || "", items, routine: a.routine || "" }, "save your workout");
+      if (!a.editingId) snap.docs.push([id, null]);
+      clearActive(); closeAllModals(); render();
+      return done(snap, `Saved “${name}” to your history (${plural(items.reduce((n, it) => n + it.sets.length, 0), "set")})`);
+    },
+    async discardWorkout() {
+      if (!active) return { error: "No workout in progress." };
+      if (!(await confirmBox("Discard workout?", "The AI coach wants to discard the workout in progress. Nothing in it will be saved.", "Discard", true))) return { error: "The person said no; nothing was discarded." };
+      const snap = coachSnap([], true);
+      clearActive(); render();
+      return done(snap, "Discarded the workout in progress");
+    },
+    startRoutine(input) {
+      const r = findRoutine(input.routine);
+      if (!r) return { error: "No routine with that id. Get ids from get_routines." };
+      if (active) return { error: "A workout is already in progress; add exercises to it, or finish it first." };
+      const snap = coachSnap([], true);
+      startRoutine(r);
+      return done(snap, `Started “${r.name}”`);
+    },
+    // Create a routine, or change one of the person's own.
+    saveRoutine(input) {
+      const own = input.id ? derived.routines.find((r) => r.id === input.id) : null;
+      if (input.id && !own) return { error: "Only the person's own routines can be changed. Leave id out to save a new one (e.g. a copy of a program workout)." };
+      const items = routineItems(input.items != null ? input.items : own && own.items);
+      if (!items.length) return { error: "A routine needs at least one exercise from the library." };
+      const name = String(input.name || (own && own.name) || "").trim().slice(0, 120);
+      if (!name) return { error: "Give the routine a name." };
+      const snap = coachSnap([own && own.id]);
+      const id = saveDoc(own ? own.id : null, { kind: "routine", name, notes: String(input.notes != null ? input.notes : (own && own.notes) || "").slice(0, 5000), items }, "save the routine");
+      if (!own) snap.docs.push([id, null]);
+      return done(snap, `${own ? "Updated" : "Saved"} the routine “${name}” (${plural(items.length, "exercise")})`, { id });
+    },
+    async deleteRoutine(input) {
+      const r = derived.routines.find((x) => x.id === input.id);
+      if (!r) return { error: "Only the person's own routines can be deleted." };
+      if (!(await confirmBox("Delete routine?", `The AI coach wants to delete “${r.name}”. Workouts you did with it stay in your history.`, "Delete", true))) return { error: "The person said no; nothing was deleted." };
+      const snap = coachSnap([r.id]);
+      removeDoc(r.id); render();
+      return done(snap, `Deleted the routine “${r.name}”`);
+    },
+    // A workout done earlier, straight into history.
+    logPastWorkout(input) {
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(input.date || "") ? input.date : ymd(Date.now());
+      const start = fromYmd(date);
+      const [hh, mm] = String(input.time || "18:00").split(":").map(Number);
+      start.setHours(clamp(hh || 0, 0, 23), clamp(mm || 0, 0, 59), 0, 0);
+      if (start.getTime() > Date.now()) return { error: "That's in the future." };
+      const items = (input.items || []).map((x) => {
+        const ex = x && knownEx(x.ex); if (!ex) return null;
+        const sets = (Array.isArray(x.sets) ? x.sets : []).slice(0, 30).map((s) => coachSet(ex.track, s, true)).filter((s) => hasNum(s, ex.track)).map(({ k, w, r, d, t }) => ({ k, w, r, d, t }));
+        return sets.length ? { ex: ex.id, name: ex.name, note: "", rest: lifts(ex.track) ? S.rest : 0, sets } : null;
+      }).filter(Boolean).slice(0, 60);
+      if (!items.length) return { error: "No sets to save: each exercise needs a library id and sets with numbers." };
+      const mins = clamp(parseInt(input.minutes, 10) || 60, 1, 1440);
+      const name = String(input.name || "Workout").trim().slice(0, 120);
+      const snap = coachSnap([]);
+      const id = saveDoc(null, { kind: "workout", name, date, start: start.getTime(), end: start.getTime() + mins * 60000, notes: String(input.notes || "").slice(0, 5000), items, routine: "" }, "save your workout");
+      snap.docs.push([id, null]);
+      render();
+      return done(snap, `Saved “${name}” on ${fmtDate(start.getTime())} (${names(items.map((it) => it.ex))})`);
+    },
+    logBody(input) {
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(input.date || "") && input.date <= ymd(Date.now()) ? input.date : ymd(Date.now());
+      const weight = input.weight != null ? wIn(input.weight) : null, fat = numIn(input.bodyFat, 100);
+      const wa = numIn(input.waist, 500), waist = wa == null ? 0 : isLb() ? wa * 2.54 : wa;
+      if (!weight && !fat && !waist) return { error: "Give a weight, body fat or waist." };
+      if ((weight || 0) > 1000) return { error: "That weight looks too big." };
+      const same = derived.body.find((b) => b.date === date);
+      const snap = coachSnap([same && same.id]);
+      const r = saveBodyEntry({ date, weight, fat, waist, notes: input.note });
+      if (!same) snap.docs.push([r.id, null]);
+      render();
+      return done(snap, `${r.updated ? "Updated" : "Logged"} your body entry for ${fmtDate(fromYmd(date).getTime())}`);
+    },
+    // Age, height, weight (today's body entry), weekly goal, default rest.
+    updateProfile(input) {
+      const today = ymd(Date.now()), same = derived.body.find((b) => b.date === today);
+      const snap = coachSnap(["settings", "profile", same && same.id]);
+      const said = [], patch = {};
+      if (input.age != null) { const a = parseInt(input.age, 10); if (a >= 10 && a <= 120) { saveProfile({ age: a }); said.push(`age ${a}`); } }
+      if (input.height != null) { const h = numIn(input.height, 400); if (h > 0) { patch.height = clamp(round1(isLb() ? h * 2.54 : h), 0, 300); said.push(`height ${input.height} ${isLb() ? "in" : "cm"}`); } }
+      if (input.weeklyGoal != null) { const g = parseInt(input.weeklyGoal, 10); if (g >= 1 && g <= 14) { patch.goal = g; said.push(`${g} workouts a week`); } }
+      if (input.defaultRest != null) { const r = parseInt(input.defaultRest, 10); if (r >= 0 && r <= 900) { patch.rest = r; said.push(`default rest ${r}s`); } }
+      if (Object.keys(patch).length) saveSettings(patch);
+      if (input.weight != null) { const w = wIn(input.weight); if (w > 0 && w <= 1000) { const r = saveBodyEntry({ date: today, weight: w }); if (!same) snap.docs.push([r.id, null]); said.push(`weight ${input.weight} ${wU()}`); } }
+      if (!said.length) return { error: "Nothing to change (age 10-120, height, weight, weeklyGoal 1-14, defaultRest 0-900)." };
+      rebuild(); render();
+      return done(snap, `Updated your ${said.join(", ")}`);
+    },
+    createExercise(input) {
+      const name = String(input.name || "").trim().slice(0, 120);
+      if (!name) return { error: "Give the exercise a name." };
+      const dup = allEx().find((e) => e.name.toLowerCase() === name.toLowerCase());
+      if (dup) return { error: `“${dup.name}” is already in the library (id ${dup.id}).` };
+      const ok = (o, v, d) => (o[v] ? v : d);
+      const muscle = ok(D.MUSCLES, input.muscle, "fullbody");
+      const snap = coachSnap([]);
+      const id = saveDoc(null, { kind: "exercise", name, muscle, equipment: ok(D.EQUIPMENT, input.equipment, "other"), category: ok(D.CATEGORIES, input.category, "strength"), track: ok(D.TRACKS, input.track, "wr"),
+        secondary: (Array.isArray(input.alsoWorks) ? input.alsoWorks : []).filter((m) => D.MUSCLES[m] && m !== muscle).slice(0, 10), notes: (Array.isArray(input.steps) ? input.steps : []).map(String).join("\n").slice(0, 5000) }, "save the exercise");
+      snap.docs.push([id, null]);
+      exCache = null; render();
+      return done(snap, `Added your own exercise “${name}”`, { id });
+    },
+  };
+
+  // ===================================================================
   // header, boot
   // ===================================================================
   $("#startBtn").onclick = () => (active ? go("workout") : startWorkout());
@@ -1820,8 +2082,8 @@
   // Leaving with a workout going: it's saved, so just say so.
   addEventListener("beforeunload", () => { if (active) persistActive(true); });
 
-  // What ai.js (the AI coach) may read and do. Read-only views of the data,
-  // plus opening things on screen for the person to look at or save.
+  // What ai.js (the AI coach) may read and do: read-only views of the data,
+  // opening things on screen, and the coach actions above (each undoable).
   window.KPRFit = {
     ready: () => !!(me && loaded && !loadErr),
     user: () => me,
@@ -1834,13 +2096,14 @@
     openExercise: (id) => exerciseDetail(id),
     openRoutineDraft: (r) => routineEditor(r),
     startRoutine: (r) => startRoutine(r),
+    profile, latestWeight, coach,
     go,
     I, esc, toast,
   };
 
   render();
   KPR.init({
-    appVersion: "1.6.0",
+    appVersion: "1.7.0",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
