@@ -306,6 +306,7 @@
       loaded = true; loadErr = null;
       rebuild();
       adoptRemoteActive();
+      if (first) syncProfile();
       // Don't redraw under someone typing in the logger.
       if (first || (other && (currentRoute().name !== "workout" || !active))) render();
     }, (e) => {
@@ -1762,7 +1763,7 @@
         if (wv != null && (wv <= 0 || wv > (isLb() ? 2200 : 1000))) { toast("That weight doesn't look right"); return; }
         const kg = wv ? wIn(wv) : 0;
         if (kg && (!lw || Math.abs(kg - lw) > 0.05)) saveBodyEntry({ date: ymd(Date.now()), weight: kg });
-        if ((age || 0) !== (P.age || 0)) saveProfile({ age: age || 0 });
+        if (age || P.age) saveProfile({ age: age || 0 });
         saveSettings({ unit, rest: clamp(parseInt($("#sRest", m).value, 10) || 0, 0, 900), goal: clamp(parseInt($("#sGoal", m).value, 10) || 3, 1, 14), height: clamp(height, 0, 300), sound: $("#sSound", m).checked });
         if (window.KPRFitAI) window.KPRFitAI.setEnabled($("#sAi", m).checked);
         lsSet(WARM_KEY, $("#sWarm", m).checked ? null : "0");
@@ -1845,6 +1846,14 @@
     p.age = clamp(Math.round(+p.age || 0), 0, 120);
     lsSet(PROFILE_KEY(), JSON.stringify(p));
     if (p.age !== before.age || !docs.has("profile")) saveDoc("profile", { kind: "profile", age: p.age }, "save your age");
+  }
+  // An age kept only on this device (its save was refused, or made offline
+  // and lost) goes up to the account the next time the app opens.
+  function syncProfile() {
+    let local = {};
+    try { local = JSON.parse(lsGet(PROFILE_KEY()) || "{}") || {}; } catch {}
+    const d = docs.get("profile");
+    if (local.age > 0 && !(d && d.age > 0)) saveDoc("profile", { kind: "profile", age: clamp(Math.round(local.age), 0, 120) }, "save your age");
   }
   const latestWeight = () => { const b = derived.body.find((x) => x.weight > 0); return b ? b.weight : 0; };
   // One body entry per day: the same date updates it.
@@ -2103,7 +2112,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.7.0",
+    appVersion: "1.7.1",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
