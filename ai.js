@@ -381,6 +381,7 @@
       "- The [[...]] lines are read by the app and hidden; never mention them.",
       "- When they're done (bye, that's all, thanks), call end_conversation and say a short goodbye.",
       "",
+      takeText(),
       `Today: ${f.ymd(Date.now())}. Units: ${f.wU()} and ${f.dU()}. Weekly goal: ${S.goal} workouts.`,
       "",
       "App guide: tabs are Today, Workout, Programs, Exercises, Progress. Today (first visit: pick a goal; then the Up next workout of their program, streak, muscles trained, last workout, records). Workout (start empty, from a routine, or repeat one; starting a routine puts a 5-minute warm-up of moving stretches for its muscles first, which Skip warm-up removes, or Add warm-up stretches adds to any workout; log sets; the Previous column shows last time; tap the set number for warm-up / drop / failure; tick a set to start the rest timer; Finish saves it, and can save it as a routine). Exercises (library with search and filters, each with steps, a muscle map and a demo; star favourites; New exercise for your own). Programs tab (Up next, your own routines, and programs picked by goal: lose fat, six-pack, build muscle, get stronger, stay fit, tone up, just starting, train at home, build stamina, flexibility, glutes & legs; each with a suggested week, tips and workouts to Start or Copy). Progress tab, switched at its top between Stats, History and Body. History (calendar, each workout: edit, repeat, save as routine, delete; Export CSV). Progress (charts, exercise progress, muscles worked, records, 1-rep-max and plate calculators). Body (weight, body fat, waist, BMI). Settings (about you: age, height, weight; units kg/lb, default rest, weekly goal, sound, warm-up on or off, download / import your data, AI Coach on or off). Today also lists the workout in progress.",
@@ -832,6 +833,17 @@
     let sum = 0; for (const x of w) sum = (sum + (x.end || x.start) % 100000 + (x.items || []).length) % 1e9;
     return [F().ymd(Date.now()), w.length, w[0] ? w[0].id : "", sum, F().settings().unit].join("|");
   }
+  // What the Coach's take box says now, for the chat's instructions, so a
+  // question about a tile (or the box) has the box in front of it.
+  function takeText() {
+    let c = null;
+    try { c = homeCache(); } catch {}
+    const d = c && c.data;
+    if (!d) return "The Coach's take box on Today hasn't been written yet.";
+    return "The Coach's take box on the Today page (written by you from their training" + (c.at ? ", " + F().ymd(c.at) : "") + ") currently says:\n" +
+      (d.headline ? d.headline + "\n" : "") + d.kpis.map((k) => `- ${k.label}: ${k.value} (${k.tone}). ${k.note}`).join("\n") +
+      "\nWhen they ask about it, explain that tile using their data (look it up with the tools) and suggest what to do; offer to set it up (e.g. add it to today's workout).";
+  }
   const homeCache = () => { try { return JSON.parse(ls.get(K_HOME()) || "null"); } catch { return null; } };
   function cleanHome(o) {
     if (!o || typeof o !== "object" || !Array.isArray(o.kpis)) return null;
@@ -881,7 +893,8 @@
     el.onclick = (e) => {
       if (e.target.closest("[data-ai-home-refresh]")) { loadHome(true); return; }
       const k = e.target.closest("[data-ai-kpi]");
-      if (k && $("#aiPanel").children.length) { open(true); ask(`Tell me more about "${k.dataset.aiKpi}" from my Coach's take, and what I should do about it.`); }
+      const kp = k && data && data.kpis.find((x) => x.label === k.dataset.aiKpi);
+      if (kp && $("#aiPanel").children.length) { open(true); ask(`In my Coach's take, "${kp.label}: ${kp.value}" says: ${kp.note} Tell me more about it, and what I should do.`); }
     };
     // A failure isn't retried by itself until the data or the day changes.
     if ((!c || stale) && !homeBusy && (!homeErr || homeErrFp !== homeFp())) loadHome();

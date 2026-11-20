@@ -2123,7 +2123,7 @@
 
   render();
   KPR.init({
-    appVersion: "1.9.0",
+    appVersion: "1.9.1",
     appId: "fitness",
     appName: "KPR Fitness",
     reportButton: false,
