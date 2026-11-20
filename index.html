@@ -18,7 +18,7 @@
 // every KPR app; kpr-core keeps it in step. See kpr-core's README.
 (function(){try{var c=document.cookie,g=function(n){var m=c.match(new RegExp("(?:^|;\\s*)"+n+"=([^;]*)"));return m?decodeURIComponent(m[1]):null},a={};try{a=JSON.parse(localStorage.getItem("kpr-appearance")||"{}")||{}}catch(e){}var t=g("kpr_theme")||a.theme||localStorage.getItem("kpr-theme")||"system",p=g("kpr_pack")||a.pack||"default",r=document.documentElement;r.setAttribute("data-kpr-themed","");r.setAttribute("data-theme",t==="dark"||(t!=="light"&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light");r.setAttribute("data-theme-pref",t);r.setAttribute("data-kpr-pack",p);if((g("kpr_motion")||a.motion)==="calm")r.setAttribute("data-kpr-motion","calm")}catch(e){}})();
 </script>
-<link rel="stylesheet" href="https://core.kprapps.online/kpr-theme.css?v=36" />
+<link rel="stylesheet" href="https://core.kprapps.online/kpr-theme.css?v=37" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -513,9 +513,9 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <script src="https://core.kprapps.online/firebase-config.js"></script>
-<script src="https://core.kprapps.online/kpr-core.js?v=36"></script>
-<script src="exercises.js?v=1.7.1"></script>
-<script src="app.js?v=1.7.1"></script>
-<script src="ai.js?v=1.7.1"></script>
+<script src="https://core.kprapps.online/kpr-core.js?v=37"></script>
+<script src="exercises.js?v=1.7.2"></script>
+<script src="app.js?v=1.7.2"></script>
+<script src="ai.js?v=1.7.2"></script>
 </body>
 </html>
